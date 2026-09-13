@@ -1,9 +1,9 @@
 const teams = [
-  {name:'Aqua Legion', icon:'🌊', accent:'#28d7ff', motto:'United by Water'},
-  {name:'Tidal Titans', icon:'🔱', accent:'#38b6ff', motto:'More Than a Team'},
-  {name:'Blue Rippers', icon:'💀', accent:'#178cff', motto:'Take the Depths'},
-  {name:'Hideous Wolves', icon:'🐺', accent:'#4da8ff', motto:'Fear the Depths'},
-  {name:'Storm Rid', icon:'🌀', accent:'#77e4ff', motto:'Ride the Storm'}
+  {name:'Aqua Legion', icon:'images/aqua_legion.png', accent:'#28d7ff', motto:'United by Water'},
+  {name:'Tidal Titans', icon:'images/tidal_titans.jpeg', accent:'#38b6ff', motto:'More Than a Team'},
+  {name:'Blue Rippers', icon:'images/blue_rippers.png', accent:'#178cff', motto:'Take the Depths'},
+  {name:'Hideous Wolves', icon:'images/hideous_wolves.png', accent:'#4da8ff', motto:'Fear the Depths'},
+  {name:'Storm Rid', icon:'images/storm_rid.png', accent:'#77e4ff', motto:'Ride the Storm'}
 ];
 
 const teamGrid = document.querySelector('#teamGrid');
@@ -17,28 +17,75 @@ const pScoreEl = document.querySelector('#playerScore');
 const eScoreEl = document.querySelector('#enemyScore');
 const message = document.querySelector('#message');
 let selectedTeam = null;
+const skinNames=[
+  ['AquaKing','WaveRider','OceanShade','BlueCurrent','TideQueen'],
+  ['AquaKing','WaveRider','StormJay','BlueGhost','TideQueen'],
+  ['RipperAqua','SeaShade','DarkWave','RiptideX','NightReaper'],
+  ['WolfKing','WaveHowler','DeepFang','IceCurrent','NightWolf'],
+  ['StormKing','TideRider','WaveStrike','AquaBlade','StormQueen']
+];
+function showSkins(){
+  const grid=document.querySelector('#skinGrid');grid.replaceChildren();
+  document.querySelector('#skinPicker').hidden=false;
+  selectedTeam.skins.forEach((skin,i)=>{
+    const button=document.createElement('button');button.className='skin';
+    button.classList.toggle('selected',i===selectedTeam.skinIndex);
+    button.setAttribute('aria-pressed',String(i===selectedTeam.skinIndex));
+    const label=document.createElement('span');label.textContent=skin.name;
+    button.append(skin.canvas,label);
+    button.onclick=()=>{selectedTeam.skinIndex=i;showSkins()};grid.appendChild(button);
+  });
+}
 
 teams.forEach((t,i)=>{
+  // Display the logo panel in the upper left of each team reference sheet.
+  const crops=[[0,.035,.258,.615],[0,.035,.277,.615],[0,.035,.259,.62],[0,.012,.273,.635],[0,.012,.276,.637]];
+  t.image=new Image();
+  t.skinIndex=0;
+  t.skins=skinNames[i].map(name=>{const portrait=document.createElement('canvas');portrait.width=128;portrait.height=128;portrait.setAttribute('aria-hidden','true');return {name,canvas:portrait}});
+  t.logo=document.createElement('canvas');t.logo.className='icon';
+  t.logo.setAttribute('aria-hidden','true');
+  t.image.onload=()=>{
+    const [x,y,w,h]=crops[i],sw=t.image.naturalWidth*w,sh=t.image.naturalHeight*h;
+    t.logo.width=Math.round(sw);t.logo.height=Math.round(sh);
+    t.logo.getContext('2d').drawImage(t.image,x*t.image.naturalWidth,y*t.image.naturalHeight,sw,sh,0,0,t.logo.width,t.logo.height);
+    const top=i>=3?.698:.709;
+    t.skins.forEach((skin,j)=>{
+      const left=[.010,.102,.194,.286,.379][j];
+      skin.canvas.getContext('2d').drawImage(t.image,left*t.image.naturalWidth,top*t.image.naturalHeight,.078*t.image.naturalWidth,.146*t.image.naturalHeight,0,0,128,128);
+    });
+  };
+  t.image.src=t.icon;
   const b=document.createElement('button');
   b.className='team'; b.style.setProperty('--accent',t.accent);
-  b.innerHTML=`<span class="icon">${t.icon}</span><strong>${t.name}</strong><small>${t.motto}</small>`;
-  b.onclick=()=>{selectedTeam=t;document.querySelectorAll('.team').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');startBtn.disabled=false};
+  b.innerHTML=`<strong>${t.name}</strong><small>${t.motto}</small>`;
+  b.prepend(t.logo);
+  b.onclick=()=>{selectedTeam=t;document.querySelectorAll('.team').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');startBtn.disabled=false;showSkins()};
   teamGrid.appendChild(b);
 });
 
 const keys={}; let pointer={x:0,y:0,down:false}; let running=false, last=0;
+let blueTeam=[],redTeam=[];
 let player, enemy, shots=[], enemyShots=[], pScore=0,eScore=0, touchMove=null;
 
-// Normalized map geometry keeps the same routes on desktop and mobile.
+const world={width:2400,height:1600};
+const camera={x:0,y:0};
+function updateCamera(){
+ if(!player)return;
+ camera.x=Math.max(0,Math.min(world.width-canvas.clientWidth,player.x-canvas.clientWidth/2));
+ camera.y=Math.max(0,Math.min(world.height-canvas.clientHeight,player.y-canvas.clientHeight/2));
+}
+// Fixed world geometry.
 const harbor = [
   [.30,.12,.12,.22,'pier'], [.58,.66,.12,.22,'pier'],
   [.30,.66,.12,.22,'pier'], [.58,.12,.12,.22,'pier'],
   [.46,.40,.08,.20,'island'],
   [.12,.24,.07,.09,'crate'], [.81,.67,.07,.09,'crate']
 ];
-function obstacles(){return harbor.map(([x,y,w,h,type])=>({x:x*canvas.clientWidth,y:y*canvas.clientHeight,w:w*canvas.clientWidth,h:h*canvas.clientHeight,type}))}
+const mapObstacles=harbor.map(([x,y,w,h,type])=>({x:x*world.width,y:y*world.height,w:w*world.width,h:h*world.height,type}));
+function obstacles(){return mapObstacles}
 function blocked(x,y,r){
-  return x<r||y<r||x>canvas.clientWidth-r||y>canvas.clientHeight-r||obstacles().some(b=>Math.hypot(x-Math.max(b.x,Math.min(x,b.x+b.w)),y-Math.max(b.y,Math.min(y,b.y+b.h)))<r);
+  return x<r||y<r||x>world.width-r||y>world.height-r||obstacles().some(b=>Math.hypot(x-Math.max(b.x,Math.min(x,b.x+b.w)),y-Math.max(b.y,Math.min(y,b.y+b.h)))<r);
 }
 function moveUnit(u,dx,dy){
   const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/4));
@@ -52,7 +99,7 @@ function clearPath(a,b,r){
   for(let i=0;i<=steps;i++){const t=steps?i/steps:0;if(blocked(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,r))return false}
   return true;
 }
-function botTarget(){
+function botTarget(enemy,player){
   if(clearPath(enemy,player,enemy.r))return player;
   const pad=enemy.r+6, nodes=[enemy,player];
   for(const b of obstacles())for(const x of [b.x-pad,b.x+b.w+pad])for(const y of [b.y-pad,b.y+b.h+pad])if(!blocked(x,y,enemy.r))nodes.push({x,y});
@@ -71,31 +118,61 @@ function botTarget(){
 function resize(){
   const r=canvas.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2);
   canvas.width=Math.floor(r.width*dpr); canvas.height=Math.floor(r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0);
-  if(player&&canvas.clientWidth&&canvas.clientHeight)respawn();
+  updateCamera();
 }
 addEventListener('resize',resize);
 
+let returnToMenuTimer=null;
+function returnToTeamSelection(){
+  clearTimeout(returnToMenuTimer);returnToMenuTimer=null;running=false;
+  touchMove=null;pointer.down=false;for(const key in keys)delete keys[key];
+  message.textContent='';game.classList.remove('active');menu.classList.add('active');
+}
 function start(){
+  clearTimeout(returnToMenuTimer);returnToMenuTimer=null;
   menu.classList.remove('active'); game.classList.add('active'); resize();
   teamName.textContent=selectedTeam.name; resetMatch(); running=true; last=performance.now(); requestAnimationFrame(loop);
 }
+let lastSpawns=[];
+function chooseSpawn(avoid){
+  const candidates=[];
+  for(let x=80;x<world.width-80;x+=80)for(let y=80;y<world.height-80;y+=80){
+    if(!blocked(x,y,36)&&avoid.every(p=>Math.hypot(x-p.x,y-p.y)>=p.distance))candidates.push({x,y});
+  }
+  return candidates[Math.floor(Math.random()*candidates.length)];
+}
 function resetMatch(){
-  const w=canvas.clientWidth,h=canvas.clientHeight;
-  player={x:w*.22,y:h*.5,r:18,speed:260,hp:3,color:selectedTeam.accent};
-  enemy={x:w*.78,y:h*.5,r:18,speed:160,hp:3,color:'#ff547d',cool:0};
-  shots=[];enemyShots=[];pScore=0;eScore=0;updateScore();message.textContent='';
+  const w=world.width,h=world.height;
+  player={x:w*.22,y:h*.5,r:18,speed:260,hp:3,color:'#28d7ff',side:'blue'};
+  const bot=side=>({x:0,y:0,r:18,speed:170,hp:3,color:side==='blue'?'#28d7ff':'#ff547d',side,cool:1});
+  blueTeam=[player,...Array.from({length:4},()=>bot('blue'))];
+  const availableSkins=selectedTeam.skins.map((_,i)=>i).filter(i=>i!==selectedTeam.skinIndex);
+  player.skinIndex=selectedTeam.skinIndex;
+  blueTeam.slice(1).forEach((u,i)=>u.skinIndex=availableSkins[i]);
+  redTeam=Array.from({length:5},()=>bot('red'));enemy=redTeam[0];
+  respawn();pScore=0;eScore=0;updateScore();message.textContent='';
 }
 function respawn(){
-  const w=canvas.clientWidth,h=canvas.clientHeight;
-  player.x=w*.22;player.y=h*.5;player.hp=3; enemy.x=w*.78;enemy.y=h*.5;enemy.hp=3;shots=[];enemyShots=[];
-  enemy.navCool=0;enemy.target=null;
+  const previous=lastSpawns.map(p=>({...p,distance:320}));
+  const p=chooseSpawn(previous),e=chooseSpawn([...previous,{...p,distance:800}]);
+  Object.assign(player,p,{hp:3});Object.assign(enemy,e,{hp:3,cool:1});
+  lastSpawns=[p,e];shots=[];enemyShots=[];
+  const placed=[];
+  for(const u of [...blueTeam,...redTeam]){
+    const anchor=u.side==='blue'?p:e;
+    const spots=[];
+    for(let x=80;x<world.width-80;x+=64)for(let y=80;y<world.height-80;y+=64)if(!blocked(x,y,36)&&placed.every(v=>Math.hypot(x-v.x,y-v.y)>55))spots.push({x,y});
+    spots.sort((a,b)=>Math.hypot(a.x-anchor.x,a.y-anchor.y)-Math.hypot(b.x-anchor.x,b.y-anchor.y));
+    Object.assign(u,spots[0],{hp:3,cool:1+Math.random(),navCool:Math.random(),target:null,respawnTime:0});placed.push(u);
+  }
+  enemy.navCool=0;enemy.target=null;updateCamera();
 }
 function updateScore(){pScoreEl.textContent=pScore;eScoreEl.textContent=eScore}
 function shoot(from,toX,toY,list,color){
   const dx=toX-from.x,dy=toY-from.y,l=Math.hypot(dx,dy)||1;
   list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,color,life:1.5});
 }
-function playerShoot(x,y){if(running)shoot(player,x,y,shots,selectedTeam.accent)}
+function playerShoot(x,y){if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
 addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true); addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointer.x=e.clientX-r.left;pointer.y=e.clientY-r.top});
@@ -107,37 +184,66 @@ canvas.addEventListener('pointerup',e=>{if(touchMove&&e.pointerId===touchMove.id
 
 function hit(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r}
 function roundWin(who){
-  if(who==='player')pScore++; else eScore++; updateScore();
-  if(pScore>=5||eScore>=5){running=false;message.textContent=pScore>eScore?'VÍTĚZSTVÍ!':'PROHRA';setTimeout(()=>{running=true;resetMatch();last=performance.now();requestAnimationFrame(loop)},1800)} else respawn();
+  if(who==='player')pScore++;else eScore++;updateScore();
+  if(pScore>=20||eScore>=20){running=false;message.textContent=pScore>eScore?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
+}
+function revive(u){
+  const avoid=[...blueTeam,...redTeam].filter(v=>v.hp>0).map(v=>({...v,distance:v.side===u.side?60:300}));
+  const p=chooseSpawn(avoid)||chooseSpawn([]);Object.assign(u,p,{hp:3,cool:1,navCool:0,target:null});
+  if(u===player)message.textContent='';
 }
 
 function update(dt){
-  const w=canvas.clientWidth,h=canvas.clientHeight; let dx=0,dy=0;
+  const w=world.width,h=world.height; let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy--; if(keys['s']||keys['arrowdown'])dy++; if(keys['a']||keys['arrowleft'])dx--; if(keys['d']||keys['arrowright'])dx++;
   if(touchMove){dx+=(touchMove.x-touchMove.sx)/45;dy+=(touchMove.y-touchMove.sy)/45}
-  const l=Math.hypot(dx,dy)||1; moveUnit(player,dx/l*player.speed*dt,dy/l*player.speed*dt);
+  const l=Math.hypot(dx,dy)||1; if(player.hp>0)moveUnit(player,dx/l*player.speed*dt,dy/l*player.speed*dt);
   player.x=Math.max(player.r,Math.min(w-player.r,player.x));player.y=Math.max(player.r,Math.min(h-player.r,player.y));
 
-  const edx=player.x-enemy.x, edy=player.y-enemy.y, el=Math.hypot(edx,edy)||1;
-  enemy.navCool=(enemy.navCool||0)-dt;
-  if(enemy.navCool<=0){enemy.target=botTarget();enemy.navCool=.3}
-  if(el>220||!clearPath(enemy,player,6)){const target=enemy.target||player,tx=target.x-enemy.x,ty=target.y-enemy.y,tl=Math.hypot(tx,ty)||1;moveUnit(enemy,tx/tl*Math.min(enemy.speed*dt,tl),ty/tl*Math.min(enemy.speed*dt,tl))}
-  enemy.cool-=dt;if(enemy.cool<=0&&clearPath(enemy,player,6)){shoot(enemy,player.x,player.y,enemyShots,'#ff547d');enemy.cool=.85+Math.random()*.45}
-
+  for(const u of [...blueTeam,...redTeam]){
+    if(u.hp<=0){u.respawnTime-=dt;if(u===player)message.textContent='Návrat za '+Math.max(1,Math.ceil(u.respawnTime));if(u.respawnTime<=0)revive(u);continue}
+    if(u===player)continue;
+    const opponents=(u.side==='blue'?redTeam:blueTeam).filter(v=>v.hp>0);
+    opponents.sort((a,b)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(b.x-u.x,b.y-u.y));
+    const foe=opponents[0];if(!foe)continue;
+    const distance=Math.hypot(foe.x-u.x,foe.y-u.y);u.navCool-=dt;
+    if(u.navCool<=0||!u.target){u.target=botTarget(u,foe);u.navCool=.8+Math.random()*.3}
+    if(distance>240||!clearPath(u,foe,6)){const tx=u.target.x-u.x,ty=u.target.y-u.y,len=Math.hypot(tx,ty)||1;moveUnit(u,tx/len*Math.min(u.speed*dt,len),ty/len*Math.min(u.speed*dt,len))}
+    u.cool-=dt;if(u.cool<=0&&distance<700&&clearPath(u,foe,6)){shoot(u,foe.x,foe.y,u.side==='blue'?shots:enemyShots,u.color);u.cool=.9+Math.random()*.6}
+  }
   for(const s of [...shots,...enemyShots]){const next={x:s.x+s.vx*dt,y:s.y+s.vy*dt};if(!clearPath(s,next,s.r))s.life=0;s.x=next.x;s.y=next.y;s.life-=dt}
-  for(const s of shots){if(s.life>0&&hit(s,enemy)){s.life=0;enemy.hp--;if(enemy.hp<=0){roundWin('player');return}}}
-  for(const s of enemyShots){if(s.life>0&&hit(s,player)){s.life=0;player.hp--;if(player.hp<=0){roundWin('enemy');return}}}
+  for(const [bullets,targets,side] of [[shots,redTeam,'player'],[enemyShots,blueTeam,'enemy']]){
+    for(const s of bullets){if(s.life<=0)continue;const victim=targets.find(u=>u.hp>0&&hit(s,u));if(!victim)continue;
+      s.life=0;victim.hp--;if(victim.hp<=0){victim.respawnTime=3;roundWin(side);if(!running)return}
+    }
+  }
   shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20); enemyShots=enemyShots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20);
 }
 
 function draw(){
-  const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);
+
+  updateCamera();
+  const w=world.width,h=world.height;ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  ctx.save();ctx.translate(-camera.x,-camera.y);
   const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#071c2c');g.addColorStop(1,'#02101a');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
   ctx.strokeStyle='#0a3852';ctx.lineWidth=1;for(let x=0;x<w;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
   for(let i=0;i<18;i++){const x=(i*97+performance.now()*.02)%w,y=(i*53)%h;ctx.fillStyle='#0c7aa733';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,Math.PI*2);ctx.fill()}
   drawHarbor(w,h);
-  drawUnit(player,selectedTeam.icon,player.hp);drawUnit(enemy,'☠',enemy.hp);
+  for(const u of blueTeam)if(u.hp>0){drawUnit(u,selectedTeam.skins[u.skinIndex].canvas,u.hp);if(u===player){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('TY',u.x,u.y+36)}}
+  for(const u of redTeam)if(u.hp>0)drawUnit(u,'☠',u.hp);
   [...shots,...enemyShots].forEach(s=>{ctx.shadowBlur=16;ctx.shadowColor=s.color;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
+  ctx.restore();drawMinimap();
+}
+function drawMinimap(){
+ const mw=Math.min(160,canvas.clientWidth*.3),mh=mw*world.height/world.width;
+ const x=canvas.clientWidth-mw-14,y=14,s=mw/world.width;
+ ctx.save();ctx.fillStyle='#02111de6';ctx.fillRect(x-5,y-5,mw+10,mh+10);
+ ctx.strokeStyle='#528392';ctx.lineWidth=1;ctx.strokeRect(x,y,mw,mh);
+ for(const b of obstacles()){ctx.fillStyle=b.type==='island'?'#698964':'#aa9371';ctx.fillRect(x+b.x*s,y+b.y*s,b.w*s,b.h*s)}
+ ctx.strokeStyle='#ffffff80';ctx.strokeRect(x+camera.x*s,y+camera.y*s,Math.min(canvas.clientWidth,world.width)*s,Math.min(canvas.clientHeight,world.height)*s);
+ for(const u of [...blueTeam,...redTeam].filter(u=>u.hp>0)){ctx.fillStyle=u.color;ctx.beginPath();ctx.arc(x+u.x*s,y+u.y*s,3,0,Math.PI*2);ctx.fill()}
+ ctx.textAlign='left';ctx.fillStyle='#c0e3e5';ctx.font='bold 12px system-ui';ctx.fillText('ZATOPENÝ PŘÍSTAV',14,26);
+ ctx.font='11px system-ui';ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/5 · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/5 · Cíl: 20 bodů',14,44);ctx.restore();
 }
 function drawHarbor(w,h){
   ctx.save();
@@ -145,9 +251,10 @@ function drawHarbor(w,h){
   ctx.strokeStyle='#43bbca22';ctx.lineWidth=2;
   for(let y=24;y<h;y+=42){ctx.beginPath();for(let x=0;x<=w;x+=8){const yy=y+Math.sin(x/45+performance.now()/1800+y)*4;if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy)}ctx.stroke()}
   ctx.strokeStyle='#718983';ctx.lineWidth=10;ctx.strokeRect(0,0,w,h);
-  for(const [x,color,label] of [[.22,'#28d7ff','01'],[.78,'#ff547d','02']]){
-    ctx.strokeStyle=color+'66';ctx.lineWidth=2;ctx.beginPath();ctx.arc(w*x,h*.5,30,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle=color;ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText(label,w*x,h*.5+48);
+  for(const [i,p] of lastSpawns.entries()){
+    const color=i===0?player.color:enemy.color;
+    ctx.strokeStyle=color+'66';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,30,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=color;ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText(i===0?'01':'02',p.x,p.y+48);
   }
   for(const b of obstacles()){
     ctx.fillStyle='#00000055';ctx.fillRect(b.x+5,b.y+7,b.w,b.h);
@@ -162,13 +269,21 @@ function drawHarbor(w,h){
       ctx.fillStyle='#adc0a1';ctx.beginPath();ctx.ellipse(b.x+b.w/2,b.y+b.h/2,b.w*.26,b.h*.22,-.2,0,Math.PI*2);ctx.fill();
     }
   }
-  ctx.textAlign='left';ctx.fillStyle='#c0e3e5';ctx.font='bold 12px system-ui';ctx.fillText('ZATOPENÝ PŘÍSTAV',18,26);
+
   ctx.restore();
 }
 function drawUnit(u,icon,hp){
-  ctx.save();ctx.translate(u.x,u.y);ctx.shadowBlur=22;ctx.shadowColor=u.color;ctx.fillStyle='#06131e';ctx.strokeStyle=u.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,u.r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;ctx.font='20px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(icon,0,1);ctx.restore();
+  ctx.save();ctx.translate(u.x,u.y);ctx.shadowBlur=22;ctx.shadowColor=u.color;ctx.fillStyle='#06131e';ctx.strokeStyle=u.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,u.r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+  if(typeof icon==='string'){
+    ctx.font='20px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(icon,0,1);
+  }else if(icon.width&&icon.height){
+    const size=(u.r-2)*2,scale=Math.min(size/icon.width,size/icon.height);
+    ctx.save();ctx.beginPath();ctx.arc(0,0,u.r-2,0,Math.PI*2);ctx.clip();
+    ctx.drawImage(icon,-icon.width*scale/2,-icon.height*scale/2,icon.width*scale,icon.height*scale);ctx.restore();
+  }
+  ctx.restore();
   ctx.fillStyle='#0b2234';ctx.fillRect(u.x-24,u.y-32,48,5);ctx.fillStyle=u.color;ctx.fillRect(u.x-24,u.y-32,48*(hp/3),5);
 }
 function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
 
-startBtn.onclick=start;document.querySelector('#backBtn').onclick=()=>{running=false;game.classList.remove('active');menu.classList.add('active')};
+startBtn.onclick=start;document.querySelector('#backBtn').onclick=returnToTeamSelection;
