@@ -1,7 +1,7 @@
 const teams = [
   {name:'Aqua Legion', icon:'images/aqua_legion.png', accent:'#28d7ff', motto:'United by Water'},
   {name:'Tidal Titans', icon:'images/Obrázek Codex 13. 9. 2026 19_20_17.png', accent:'#38b6ff', motto:'More Than a Team'},
-  {name:'Blue Rippers', icon:'images/blue_rippers.png', accent:'#178cff', motto:'Take the Depths'},
+  {name:'Blue Rippers', icon:'images/blue_rippers_team.png', accent:'#178cff', motto:'Take the Depths'},
   {name:'Hideous Wolves', icon:'images/hideous_wolves.png', accent:'#4da8ff', motto:'Fear the Depths'},
   {name:'Storm Rid', icon:'images/storm_rid.png', accent:'#77e4ff', motto:'Ride the Storm'}
 ];
