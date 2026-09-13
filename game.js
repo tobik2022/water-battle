@@ -1,6 +1,6 @@
 const teams = [
   {name:'Aqua Legion', icon:'images/aqua_legion.png', accent:'#28d7ff', motto:'United by Water'},
-  {name:'Tidal Titans', icon:'images/tidal_titans.jpeg', accent:'#38b6ff', motto:'More Than a Team'},
+  {name:'Tidal Titans', icon:'images/Obrázek Codex 13. 9. 2026 19_20_17.png', accent:'#38b6ff', motto:'More Than a Team'},
   {name:'Blue Rippers', icon:'images/blue_rippers.png', accent:'#178cff', motto:'Take the Depths'},
   {name:'Hideous Wolves', icon:'images/hideous_wolves.png', accent:'#4da8ff', motto:'Fear the Depths'},
   {name:'Storm Rid', icon:'images/storm_rid.png', accent:'#77e4ff', motto:'Ride the Storm'}
@@ -19,7 +19,7 @@ const message = document.querySelector('#message');
 let selectedTeam = null;
 const skinNames=[
   ['AquaKing','WaveRider','OceanShade','BlueCurrent','TideQueen'],
-  ['AquaKing','WaveRider','StormJay','BlueGhost','TideQueen'],
+  ['Neptune','Marina','Riptide','Abyss','Sirena'],
   ['RipperAqua','SeaShade','DarkWave','RiptideX','NightReaper'],
   ['WolfKing','WaveHowler','DeepFang','IceCurrent','NightWolf'],
   ['StormKing','TideRider','WaveStrike','AquaBlade','StormQueen']
@@ -39,7 +39,7 @@ function showSkins(){
 
 teams.forEach((t,i)=>{
   // Display the logo panel in the upper left of each team reference sheet.
-  const crops=[[0,.035,.258,.615],[0,.035,.277,.615],[0,.035,.259,.62],[0,.012,.273,.635],[0,.012,.276,.637]];
+  const crops=[[0,.035,.258,.615],[0,.032,.261,.580],[0,.035,.259,.62],[0,.012,.273,.635],[0,.012,.276,.637]];
   t.image=new Image();
   t.skinIndex=0;
   t.skins=skinNames[i].map(name=>{const portrait=document.createElement('canvas');portrait.width=128;portrait.height=128;portrait.setAttribute('aria-hidden','true');return {name,canvas:portrait}});
@@ -49,10 +49,11 @@ teams.forEach((t,i)=>{
     const [x,y,w,h]=crops[i],sw=t.image.naturalWidth*w,sh=t.image.naturalHeight*h;
     t.logo.width=Math.round(sw);t.logo.height=Math.round(sh);
     t.logo.getContext('2d').drawImage(t.image,x*t.image.naturalWidth,y*t.image.naturalHeight,sw,sh,0,0,t.logo.width,t.logo.height);
-    const top=i>=3?.698:.709;
+    const top=i===1?.670:i>=3?.698:.709;
     t.skins.forEach((skin,j)=>{
-      const left=[.010,.102,.194,.286,.379][j];
-      skin.canvas.getContext('2d').drawImage(t.image,left*t.image.naturalWidth,top*t.image.naturalHeight,.078*t.image.naturalWidth,.146*t.image.naturalHeight,0,0,128,128);
+      const left=(i===1?[.010,.098,.187,.276,.365]:[.010,.102,.194,.286,.379])[j];
+      const width=i===1?.075:.078,height=i===1?.142:.146;
+      skin.canvas.getContext('2d').drawImage(t.image,left*t.image.naturalWidth,top*t.image.naturalHeight,width*t.image.naturalWidth,height*t.image.naturalHeight,0,0,128,128);
     });
   };
   t.image.src=t.icon;
