@@ -8,7 +8,17 @@
 </head>
 <body>
   <main id="app">
-    <section id="menu" class="screen active">
+    <section id="welcome" class="screen active" aria-labelledby="welcomeTitle">
+      <div class="welcome-panel">
+        <canvas id="welcomeLogo" width="532" height="438" role="img" aria-label="Vodní kapka Water Battle"></canvas>
+        <h1 id="welcomeTitle">WATER BATTLE</h1>
+        <p class="welcome-motto">PLAY. COMPETE. BELONG.</p>
+        <p class="welcome-description">Vyber si tým. Najdi svou postavu.<br>Vyraz do vodní bitvy 5 proti 5.</p>
+        <button id="enterBtn" class="primary">ZAČÍT <span aria-hidden="true">→</span></button>
+        <p class="welcome-footer">Společně rozvíříme vlny.</p>
+      </div>
+    </section>
+    <section id="menu" class="screen">
       <div class="panel hero">
         <p class="eyebrow">WATER BATTLE</p>
         <h1>Vyber tým</h1>

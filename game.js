@@ -9,6 +9,18 @@ const teams = [
 const teamGrid = document.querySelector('#teamGrid');
 const startBtn = document.querySelector('#startBtn');
 const menu = document.querySelector('#menu');
+const welcome=document.querySelector('#welcome');
+const welcomeImage=new Image();
+welcomeImage.onload=()=>{
+  const logo=document.querySelector('#welcomeLogo');
+  // Show only the upper-left water emblem from the supplied reference sheet.
+  logo.getContext('2d').drawImage(welcomeImage,30/1536*welcomeImage.naturalWidth,45/838*welcomeImage.naturalHeight,266/1536*welcomeImage.naturalWidth,219/838*welcomeImage.naturalHeight,0,0,532,438);
+};
+welcomeImage.src='images/water-battle-reference.png';
+document.querySelector('#enterBtn').onclick=()=>{
+  welcome.classList.remove('active');menu.classList.add('active');
+  document.querySelector('#teamGrid button').focus();
+};
 const game = document.querySelector('#game');
 const canvas = document.querySelector('#canvas');
 const ctx = canvas.getContext('2d');
