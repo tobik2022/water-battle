@@ -21,3 +21,8 @@ button{font:inherit}.screen{display:none;width:100vw;height:100vh}.screen.active
 .skin canvas{width:72px;max-width:100%;height:auto;border-radius:8px}.skin span{font-size:12px;overflow-wrap:anywhere}
 .skin:hover{border-color:#46dfff}.skin.selected{border-color:#28d7ff;box-shadow:0 0 0 2px #28d7ff;background:#0b2d40}
 @media(max-width:760px){.skin-grid{grid-template-columns:repeat(3,minmax(0,1fr))}#menu{align-items:flex-start}.team-grid{max-height:36vh}}
+.kill-feed{position:absolute;right:14px;top:210px;width:min(330px,calc(100vw - 28px));pointer-events:none;z-index:2}
+.kill-feed ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.kill-feed li{padding:7px 10px;border-radius:7px;background:#02111de6;border:1px solid #23465b;font-size:12px;color:#9ab1bf;overflow-wrap:anywhere}
+.kill-feed .blue{color:#52e7ff;font-weight:700}.kill-feed .red{color:#ff7897;font-weight:700}
+@media(max-width:760px){.kill-feed{top:195px;width:min(280px,calc(100vw - 28px))}.kill-feed li{font-size:11px}}

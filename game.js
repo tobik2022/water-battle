@@ -16,6 +16,16 @@ const teamName = document.querySelector('#teamName');
 const pScoreEl = document.querySelector('#playerScore');
 const eScoreEl = document.querySelector('#enemyScore');
 const message = document.querySelector('#message');
+const killFeed=document.querySelector('#killFeed');
+function recordElimination(attacker,victim){
+  const entry=document.createElement('li');
+  const killer=document.createElement('span'),target=document.createElement('span');
+  killer.className=attacker.side;target.className=victim.side;
+  killer.textContent=attacker.name;target.textContent=victim.name;
+  entry.append(killer,document.createTextNode(' vyřadil/a '),target);
+  killFeed.prepend(entry);
+  while(killFeed.children.length>5)killFeed.lastElementChild.remove();
+}
 let selectedTeam = null;
 const skinNames=[
   ['AquaKing','WaveRider','OceanShade','BlueCurrent','TideQueen'],
@@ -143,6 +153,7 @@ function chooseSpawn(avoid){
   return candidates[Math.floor(Math.random()*candidates.length)];
 }
 function resetMatch(){
+  killFeed.replaceChildren();
   const w=world.width,h=world.height;
   player={x:w*.22,y:h*.5,r:18,speed:260,hp:3,color:'#28d7ff',side:'blue'};
   const bot=side=>({x:0,y:0,r:18,speed:170,hp:3,color:side==='blue'?'#28d7ff':'#ff547d',side,cool:1});
@@ -151,6 +162,8 @@ function resetMatch(){
   player.skinIndex=selectedTeam.skinIndex;
   blueTeam.slice(1).forEach((u,i)=>u.skinIndex=availableSkins[i]);
   redTeam=Array.from({length:5},()=>bot('red'));enemy=redTeam[0];
+  blueTeam.forEach(u=>u.name=selectedTeam.skins[u.skinIndex].name+(u===player?' (TY)':''));
+  redTeam.forEach((u,i)=>u.name='Červený '+(i+1));
   respawn();pScore=0;eScore=0;updateScore();message.textContent='';
 }
 function respawn(){
@@ -171,7 +184,7 @@ function respawn(){
 function updateScore(){pScoreEl.textContent=pScore;eScoreEl.textContent=eScore}
 function shoot(from,toX,toY,list,color){
   const dx=toX-from.x,dy=toY-from.y,l=Math.hypot(dx,dy)||1;
-  list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,color,life:1.5});
+  list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,color,life:1.5,attacker:{name:from.name,side:from.side}});
 }
 function playerShoot(x,y){if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
@@ -215,7 +228,7 @@ function update(dt){
   for(const s of [...shots,...enemyShots]){const next={x:s.x+s.vx*dt,y:s.y+s.vy*dt};if(!clearPath(s,next,s.r))s.life=0;s.x=next.x;s.y=next.y;s.life-=dt}
   for(const [bullets,targets,side] of [[shots,redTeam,'player'],[enemyShots,blueTeam,'enemy']]){
     for(const s of bullets){if(s.life<=0)continue;const victim=targets.find(u=>u.hp>0&&hit(s,u));if(!victim)continue;
-      s.life=0;victim.hp--;if(victim.hp<=0){victim.respawnTime=3;roundWin(side);if(!running)return}
+      s.life=0;victim.hp--;if(victim.hp<=0){victim.respawnTime=3;recordElimination(s.attacker,victim);roundWin(side);if(!running)return}
     }
   }
   shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20); enemyShots=enemyShots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20);
