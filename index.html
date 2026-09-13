@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Water Battle — Prototype</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="menu" class="screen active">
+      <div class="panel hero">
+        <p class="eyebrow">WATER BATTLE</p>
+        <h1>Vyber tým</h1>
+        <p class="subtitle">Zatopený přístav — bojuj mezi moly, kryj se za bednami a obejdi středový ostrov.</p>
+        <div id="teamGrid" class="team-grid"></div>
+        <button id="startBtn" class="primary" disabled>START BATTLE</button>
+        <p class="hint">PC: WASD / šipky + myš. Mobil: levá část obrazovky = pohyb, pravá = střelba.</p>
+      </div>
+    </section>
+
+    <section id="game" class="screen">
+      <header class="hud">
+        <div><span class="label">TÝM</span><strong id="teamName">—</strong></div>
+        <div class="score"><span id="playerScore">0</span><b>:</b><span id="enemyScore">0</span></div>
+        <button id="backBtn" class="ghost">MENU</button>
+      </header>
+      <canvas id="canvas"></canvas>
+      <div id="message" class="message"></div>
+      <div class="mobile-help">◀ pohyb &nbsp;&nbsp; | &nbsp;&nbsp; střelba ▶</div>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
