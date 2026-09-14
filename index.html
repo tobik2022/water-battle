@@ -20,23 +20,36 @@
     </section>
     <section id="menu" class="screen">
       <div class="panel hero">
-        <p class="eyebrow">WATER BATTLE</p>
-        <h1>Vyber tým</h1>
-        <p class="subtitle">5 modrých proti 5 červeným — ty a 4 spojenci proti 5 botům. První tým s 20 body vyhrává.</p>
+        <div class="lobby-topbar"><div class="profile-badge">WB<span>777</span></div><div class="currency">🏆 <b>20929</b></div><div class="currency">💎 <b>1993</b></div><div class="currency">🪙 <b>536</b></div><button class="menu-square">☰</button></div>
+        <div class="lobby-side left"><button>🛒<small>OBCHOD</small></button><button id="playersBtn" class="players-button"><span class="players-icon">👤</span><small>HRÁČI</small></button><button>🎯<small>ÚKOLY</small></button></div>
+        <div class="lobby-side right"><button class="upgrade-button"><span class="upgrade-icon">⬆</span><small>UPGRADY</small></button><button>🙂<small>PŘÁTELÉ</small></button><button>🏆<small>KLUB</small></button></div>
+        <p class="eyebrow">WATER BATTLE · LOBBY</p>
+        <h1>Čekárna bitvy</h1>
+        <p class="subtitle">Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.</p>
+        <div class="lobby-stage"><div class="stage-rays"></div><div class="lobby-banner" aria-label="Týmy Water Battle"><img src="images/aqua_legion.png" alt="Aqua Legion"><span>VS</span><img src="images/blue_rippers_team.png" alt="Blue Rippers"><span>VS</span><img src="images/storm_rid.png" alt="Storm Rid"></div></div>
+        <div class="lobby-status"><span class="status-dot"></span><strong>LOBBY OTEVŘENÁ</strong><span>• 1/10 hráčů</span></div>
+        <div class="lobby-players"><div class="lobby-player you"><span class="player-avatar">TY</span><span><strong>Ty</strong><small>Připraven k výběru</small></span><b id="readyMark">○</b></div><div class="lobby-player"><span class="player-avatar bot">AI</span><span><strong>Červený tým</strong><small>5 protivníků čeká</small></span><b>✓</b></div></div>
         <div id="teamGrid" class="team-grid"></div>
+        <section id="mapPicker" class="event-map-panel" aria-labelledby="mapTitle">
+          <h2 id="mapTitle"><span class="map-title-icon" aria-hidden="true">▰</span> Vyber mapu <span id="selectedMapLabel">—</span></h2>
+          <div id="mapGrid" class="map-grid"></div>
+        </section>
         <section id="skinPicker" hidden aria-labelledby="skinTitle">
           <h2 id="skinTitle">Vyber skin</h2>
           <div id="skinGrid" class="skin-grid"></div>
         </section>
-        <button id="startBtn" class="primary" disabled>START BATTLE</button>
+        <button id="startBtn" class="primary play-button" disabled>PLAY <span>▶</span></button>
         <p class="hint">PC: WASD / šipky + myš. Mobil: levá část obrazovky = pohyb, pravá = střelba.</p>
       </div>
+      <div id="playerRoster" class="roster-modal" hidden><div class="roster-card"><button id="closeRoster" class="roster-close">×</button><p class="eyebrow">WATER BATTLE · HRÁČI</p><h2 id="rosterTitle">Vyber tým</h2><p id="rosterSubtitle">Nejdříve vyber tým.</p><div id="rosterGrid" class="roster-grid"></div></div></div>
+      <div id="mapPreview" class="roster-modal" hidden><div class="map-preview-card"><button id="closeMapPreview" class="roster-close">×</button><p class="eyebrow">NÁHLED MAPY</p><h2 id="previewMapTitle">Mapa</h2><p id="previewMapMission"></p><canvas id="previewMapCanvas" width="620" height="360"></canvas></div></div>
     </section>
 
     <section id="game" class="screen">
       <header class="hud">
         <div><span class="label">TÝM</span><strong id="teamName">—</strong></div>
         <div class="score"><span id="playerScore">0</span><b>:</b><span id="enemyScore">0</span></div>
+        <div class="mission"><span class="label">MISE</span><strong id="missionText">Získej 3 vyřazení · 0/3</strong></div>
         <button id="backBtn" class="ghost">MENU</button>
       </header>
       <canvas id="canvas"></canvas>
