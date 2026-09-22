@@ -42,9 +42,21 @@ const teamName = document.querySelector('#teamName');
 const pScoreEl = document.querySelector('#playerScore');
 const eScoreEl = document.querySelector('#enemyScore');
 const message = document.querySelector('#message');
+const menuBtn=document.querySelector('#menuBtn'), hamburgerMenu=document.querySelector('#hamburgerMenu');
+menuBtn.onclick=e=>{e.stopPropagation();const open=hamburgerMenu.hidden;hamburgerMenu.hidden=!open;menuBtn.setAttribute('aria-expanded',String(open))};
+document.addEventListener('click',e=>{if(!hamburgerMenu.hidden&&!hamburgerMenu.contains(e.target)&&e.target!==menuBtn){hamburgerMenu.hidden=true;menuBtn.setAttribute('aria-expanded','false')}});
 const missionText = document.querySelector('#missionText');
 const killFeed=document.querySelector('#killFeed');
 let audioContext=null, missionKills=0, particles=[];
+const upgrades={power:false,fireRate:false,speed:false};
+const upgradeDefinitions=[
+  ['power','💥','SÍLA STŘELBY','Střely ubírají 2 životy místo 1.'],['fireRate','⚡','RYCHLOST STŘELBY','Střílej o 35 % rychleji.'],['speed','🏃','RYCHLEJŠÍ CHŮZE','Pohybuj se o 30 % rychleji.'],
+  ['health','❤️','VÍCE ŽIVOTŮ','Maximum životů se zvýší ze 3 na 5.'],['projectileSpeed','🚀','RYCHLEJŠÍ STŘELY','Střely letí o 25 % rychleji.'],['range','🎯','DELŠÍ DOSAH','Střely vydrží ve vzduchu déle.'],
+  ['shield','🛡️','VODNÍ ŠTÍT','První zásah po respawnu neublíží.'],['critical','⭐','KRITICKÝ ZÁSAH','Každá třetí střela způsobí bonusové poškození.'],['cooldown','🔄','RYCHLÝ RESPAWN','Po vyřazení se vrátíš do hry rychleji.'],['energy','🔋','VÍCE ENERGIE','Zvládneš delší nepřetržitou střelbu.']
+];
+const upgradesModal=document.querySelector('#upgradesModal');
+function showUpgrades(){const grid=document.querySelector('#upgradeGrid');grid.replaceChildren();upgradeDefinitions.forEach(([key,icon,name,desc])=>{const item=document.createElement('div');item.className='upgrade-item'+(upgrades[key]?' active':'');item.innerHTML=`<div class="upgrade-symbol">${icon}</div><strong>${name}</strong><small>${desc}</small>`;const button=document.createElement('button');button.textContent=upgrades[key]?'AKTIVNÍ':'VYLEPŠIT';button.disabled=upgrades[key];button.onclick=()=>{upgrades[key]=true;showUpgrades()};item.append(button);grid.append(item)});upgradesModal.hidden=false}
+document.querySelector('#upgradesBtn').onclick=showUpgrades;document.querySelector('#closeUpgrades').onclick=()=>upgradesModal.hidden=true;upgradesModal.onclick=e=>{if(e.target===upgradesModal)upgradesModal.hidden=true};
 function unlockAudio(){if(!audioContext)audioContext=new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume()}
 function sound(type){const now=(audioContext||{}).currentTime||0,osc=audioContext.createOscillator(),gain=audioContext.createGain(),s={shoot:[260,.06,'square',.035],hit:[110,.12,'sawtooth',.06],ko:[70,.28,'triangle',.1],win:[520,.5,'sine',.08],lose:[120,.45,'sine',.06]}[type];osc.type=s[2];osc.frequency.setValueAtTime(s[0],now);osc.frequency.exponentialRampToValueAtTime(s[0]*(type==='win'?1.8:.55),now+s[1]);gain.gain.setValueAtTime(s[3],now);gain.gain.exponentialRampToValueAtTime(.001,now+s[1]);osc.connect(gain).connect(audioContext.destination);osc.start(now);osc.stop(now+s[1])}
 function burst(x,y,color,count=12){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*180;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.45+Math.random()*.35,color,size:2+Math.random()*4})}}
@@ -59,6 +71,7 @@ function recordElimination(attacker,victim){
   while(killFeed.children.length>5)killFeed.lastElementChild.remove();
 }
 let selectedTeam = null;
+let enemyTeam = null;
 function showRoster(){
   rosterGrid.replaceChildren();
   if(!selectedTeam){rosterTitle.textContent='Vyber tým';rosterSubtitle.textContent='Nejdříve vyber tým.';rosterModal.hidden=false;return}
@@ -134,6 +147,10 @@ teams.forEach((t,i)=>{
 });
 
 const keys={}; let pointer={x:0,y:0,down:false}; let running=false, last=0;
+let gameMode='5v5';
+const modeDescription=document.querySelector('#modeDescription'), opponentLabel=document.querySelector('#opponentLabel'), opponentDetail=document.querySelector('#opponentDetail');
+function setGameMode(mode){gameMode=mode;const duel=mode==='1v1';document.querySelector('#teamModeBtn').classList.toggle('selected',!duel);document.querySelector('#duelModeBtn').classList.toggle('selected',duel);document.querySelector('#teamModeBtn').setAttribute('aria-pressed',String(!duel));document.querySelector('#duelModeBtn').setAttribute('aria-pressed',String(duel));modeDescription.textContent=duel?'Vyber tým, mapu a skin. Postav se soupeři v souboji jeden proti jednomu.':'Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.';opponentLabel.textContent=duel?'Soupeř':'Červený tým';opponentDetail.textContent=duel?'1 protivník čeká':'5 protivníků čeká'}
+document.querySelector('#teamModeBtn').onclick=()=>setGameMode('5v5');document.querySelector('#duelModeBtn').onclick=()=>setGameMode('1v1');
 let blueTeam=[],redTeam=[];
 let player, enemy, shots=[], enemyShots=[], pScore=0,eScore=0, touchMove=null, touchAim=null, touchFireTimer=0;
 
@@ -211,21 +228,23 @@ function chooseSpawn(avoid){
 function resetMatch(){
   killFeed.replaceChildren();
   const w=world.width,h=world.height;
-  player={x:w*.22,y:h*.5,r:18,speed:260,hp:3,color:'#28d7ff',side:'blue'};
+  const enemyChoices=teams.filter(t=>t!==selectedTeam);
+  enemyTeam=enemyChoices[Math.floor(Math.random()*enemyChoices.length)];
+  player={x:w*.22,y:h*.5,r:18,speed:260*(upgrades.speed?1.3:1),maxHp:upgrades.health?5:3,hp:upgrades.health?5:3,color:'#28d7ff',side:'blue'};
   const bot=side=>({x:0,y:0,r:18,speed:170,hp:3,color:side==='blue'?'#28d7ff':'#ff547d',side,cool:1});
-  blueTeam=[player,...Array.from({length:4},()=>bot('blue'))];
+  blueTeam=[player,...Array.from({length:gameMode==='1v1'?0:4},()=>bot('blue'))];
   const availableSkins=selectedTeam.skins.map((_,i)=>i).filter(i=>i!==selectedTeam.skinIndex);
   player.skinIndex=selectedTeam.skinIndex;
   blueTeam.slice(1).forEach((u,i)=>u.skinIndex=availableSkins[i]);
-  redTeam=Array.from({length:5},()=>bot('red'));enemy=redTeam[0];
+  redTeam=Array.from({length:gameMode==='1v1'?1:5},()=>bot('red'));enemy=redTeam[0];
   blueTeam.forEach(u=>u.name=selectedTeam.skins[u.skinIndex].name+(u===player?' (TY)':''));
-  redTeam.forEach((u,i)=>u.name='Červený '+(i+1));
+  redTeam.forEach((u,i)=>{u.skinIndex=i%enemyTeam.skins.length;u.name=enemyTeam.skins[u.skinIndex].name+' · '+enemyTeam.name+(i?' '+(i+1):'')});
   respawn();pScore=0;eScore=0;missionKills=0;particles=[];updateScore();updateMission();message.textContent='';
 }
 function respawn(){
   const previous=lastSpawns.map(p=>({...p,distance:320}));
   const p=chooseSpawn(previous),e=chooseSpawn([...previous,{...p,distance:800}]);
-  Object.assign(player,p,{hp:3});Object.assign(enemy,e,{hp:3,cool:1});
+  Object.assign(player,p,{hp:player.maxHp});Object.assign(enemy,e,{hp:3,cool:1});
   lastSpawns=[p,e];shots=[];enemyShots=[];
   const placed=[];
   for(const u of [...blueTeam,...redTeam]){
@@ -233,14 +252,14 @@ function respawn(){
     const spots=[];
     for(let x=80;x<world.width-80;x+=64)for(let y=80;y<world.height-80;y+=64)if(!blocked(x,y,36)&&placed.every(v=>Math.hypot(x-v.x,y-v.y)>55))spots.push({x,y});
     spots.sort((a,b)=>Math.hypot(a.x-anchor.x,a.y-anchor.y)-Math.hypot(b.x-anchor.x,b.y-anchor.y));
-    Object.assign(u,spots[0],{hp:3,cool:1+Math.random(),navCool:Math.random(),target:null,respawnTime:0});placed.push(u);
+    Object.assign(u,spots[0],{hp:u===player?(player.maxHp||3):3,cool:1+Math.random(),navCool:Math.random(),target:null,respawnTime:0});placed.push(u);
   }
   enemy.navCool=0;enemy.target=null;updateCamera();
 }
 function updateScore(){pScoreEl.textContent=pScore;eScoreEl.textContent=eScore}
 function shoot(from,toX,toY,list,color){
   const dx=toX-from.x,dy=toY-from.y,l=Math.hypot(dx,dy)||1;
-  list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,color,life:1.5,attacker:{name:from.name,side:from.side}});if(from===player)sound('shoot');
+  list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,damage:from===player&&upgrades.power?2:1,color,life:1.5,attacker:{name:from.name,side:from.side}});if(from===player)sound('shoot');
 }
 function playerShoot(x,y){if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
@@ -256,11 +275,12 @@ canvas.addEventListener('pointercancel',e=>{if(touchMove&&e.pointerId===touchMov
 function hit(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r}
 function roundWin(who){
   if(who==='player')pScore++;else eScore++;updateScore();
-  if(pScore>=20||eScore>=20){running=false;const won=pScore>eScore;message.textContent=won?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';sound(won?'win':'lose');returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
+  const scoreLimit=gameMode==='1v1'?3:20;
+  if(pScore>=scoreLimit||eScore>=scoreLimit){running=false;const won=pScore>eScore;message.textContent=won?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';sound(won?'win':'lose');returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
 }
 function revive(u){
   const avoid=[...blueTeam,...redTeam].filter(v=>v.hp>0).map(v=>({...v,distance:v.side===u.side?60:300}));
-  const p=chooseSpawn(avoid)||chooseSpawn([]);Object.assign(u,p,{hp:3,cool:1,navCool:0,target:null});
+  const p=chooseSpawn(avoid)||chooseSpawn([]);Object.assign(u,p,{hp:u===player?player.maxHp:3,cool:1,navCool:0,target:null});
   if(u===player)message.textContent='';
 }
 
@@ -268,7 +288,7 @@ function update(dt){
   const w=world.width,h=world.height; let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy--; if(keys['s']||keys['arrowdown'])dy++; if(keys['a']||keys['arrowleft'])dx--; if(keys['d']||keys['arrowright'])dx++;
   if(touchMove){const tx=touchMove.x-touchMove.sx,ty=touchMove.y-touchMove.sy,tl=Math.hypot(tx,ty)||1;dx+=tx/Math.max(55,tl);dy+=ty/Math.max(55,tl)}
-  touchFireTimer-=dt;if(touchAim&&touchFireTimer<=0&&player.hp>0){playerShoot(touchAim.x,touchAim.y);touchFireTimer=.2}
+  touchFireTimer-=dt;if(touchAim&&touchFireTimer<=0&&player.hp>0){playerShoot(touchAim.x,touchAim.y);touchFireTimer=upgrades.fireRate?.13:.2}
   const l=Math.hypot(dx,dy)||1; if(player.hp>0)moveUnit(player,dx/l*player.speed*dt,dy/l*player.speed*dt);
   player.x=Math.max(player.r,Math.min(w-player.r,player.x));player.y=Math.max(player.r,Math.min(h-player.r,player.y));
 
@@ -286,7 +306,7 @@ function update(dt){
   for(const s of [...shots,...enemyShots]){const next={x:s.x+s.vx*dt,y:s.y+s.vy*dt};if(!clearPath(s,next,s.r))s.life=0;s.x=next.x;s.y=next.y;s.life-=dt}
   for(const [bullets,targets,side] of [[shots,redTeam,'player'],[enemyShots,blueTeam,'enemy']]){
     for(const s of bullets){if(s.life<=0)continue;const victim=targets.find(u=>u.hp>0&&hit(s,u));if(!victim)continue;
-      s.life=0;victim.hp--;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=3;recordElimination(s.attacker,victim);if(s.attacker.name===player.name){missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){message.textContent='MISE SPLNĚNA!';sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
+      s.life=0;victim.hp-=s.damage||1;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=3;recordElimination(s.attacker,victim);if(s.attacker.name===player.name){missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){message.textContent='MISE SPLNĚNA!';sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
     }
   }
   shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20); enemyShots=enemyShots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20);
@@ -303,7 +323,7 @@ function draw(){
   for(let i=0;i<18;i++){const x=(i*97+performance.now()*.02)%w,y=(i*53)%h;ctx.fillStyle='#0c7aa733';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,Math.PI*2);ctx.fill()}
   drawHarbor(w,h);
   for(const u of blueTeam)if(u.hp>0){drawUnit(u,selectedTeam.skins[u.skinIndex].canvas,u.hp);if(u===player){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('TY',u.x,u.y+36)}}
-  for(const u of redTeam)if(u.hp>0)drawUnit(u,'☠',u.hp);
+  for(const u of redTeam)if(u.hp>0)drawUnit(u,enemyTeam?.skins[u.skinIndex]?.canvas||'☠',u.hp);
   [...shots,...enemyShots].forEach(s=>{ctx.shadowBlur=16;ctx.shadowColor=s.color;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/.7);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
   ctx.restore();drawMinimap();
@@ -318,7 +338,7 @@ function drawMinimap(){
  ctx.strokeStyle='#ffffff80';ctx.strokeRect(x+camera.x*s,y+camera.y*s,Math.min(canvas.clientWidth,world.width)*s,Math.min(canvas.clientHeight,world.height)*s);
  for(const u of [...blueTeam,...redTeam].filter(u=>u.hp>0)){ctx.fillStyle=u.color;ctx.beginPath();ctx.arc(x+u.x*s,y+u.y*s,3,0,Math.PI*2);ctx.fill()}
  ctx.textAlign='left';ctx.fillStyle=maps[selectedMap].tint;ctx.font='bold 12px system-ui';ctx.fillText(maps[selectedMap].name.toUpperCase(),14,26);
- ctx.font='11px system-ui';ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/5 · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/5 · Cíl: 20 bodů',14,44);ctx.restore();
+ ctx.font='11px system-ui';const teamSize=gameMode==='1v1'?1:5;const scoreLimit=gameMode==='1v1'?3:20;ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/'+teamSize+' · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/'+teamSize+' · Cíl: '+scoreLimit+' bodů',14,44);ctx.restore();
 }
 function drawHarbor(w,h){
   ctx.save();
@@ -357,7 +377,7 @@ function drawUnit(u,icon,hp){
     ctx.drawImage(icon,-icon.width*scale/2,-icon.height*scale/2,icon.width*scale,icon.height*scale);ctx.restore();
   }
   ctx.restore();
-  ctx.fillStyle='#0b2234';ctx.fillRect(u.x-24,u.y-32,48,5);ctx.fillStyle=u.color;ctx.fillRect(u.x-24,u.y-32,48*(hp/3),5);
+  ctx.fillStyle='#0b2234';ctx.fillRect(u.x-24,u.y-32,48,5);ctx.fillStyle=u.color;ctx.fillRect(u.x-24,u.y-32,48*(hp/(u.maxHp||3)),5);
 }
 function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
 

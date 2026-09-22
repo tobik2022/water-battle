@@ -20,14 +20,19 @@
     </section>
     <section id="menu" class="screen">
       <div class="panel hero">
-        <div class="lobby-topbar"><div class="profile-badge">WB<span>777</span></div><div class="currency">🏆 <b>20929</b></div><div class="currency">💎 <b>1993</b></div><div class="currency">🪙 <b>536</b></div><button class="menu-square">☰</button></div>
-        <div class="lobby-side left"><button>🛒<small>OBCHOD</small></button><button id="playersBtn" class="players-button"><span class="players-icon">👤</span><small>HRÁČI</small></button><button>🎯<small>ÚKOLY</small></button></div>
-        <div class="lobby-side right"><button class="upgrade-button"><span class="upgrade-icon">⬆</span><small>UPGRADY</small></button><button>🙂<small>PŘÁTELÉ</small></button><button>🏆<small>KLUB</small></button></div>
+        <div class="lobby-topbar"><div class="profile-badge">WB<span>777</span></div><div class="currency">🏆 <b>20929</b></div><div class="currency">💎 <b>1993</b></div><div class="currency">🪙 <b>536</b></div><button id="menuBtn" class="menu-square" aria-expanded="false" aria-controls="hamburgerMenu">☰</button></div>
+        <nav id="hamburgerMenu" class="hamburger-menu" hidden aria-label="Hlavní menu">
+          <button>🛒<small>OBCHOD</small></button><button id="playersBtn" class="players-button"><span class="players-icon">👤</span><small>HRÁČI</small></button><button>🎯<small>ÚKOLY</small></button>
+          <button id="upgradesBtn" class="upgrade-button"><span class="upgrade-icon">⬆</span><small>UPGRADY</small></button><button>🙂<small>PŘÁTELÉ</small></button><button>🏆<small>KLUB</small></button>
+        </nav>
         <p class="eyebrow">WATER BATTLE · LOBBY</p>
         <h1>Čekárna bitvy</h1>
-        <p class="subtitle">Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.</p>
+        <p id="modeDescription" class="subtitle">Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.</p>
+        <div class="mode-picker" role="group" aria-label="Režim hry">
+          <span>REŽIM</span><button id="teamModeBtn" class="mode-option selected" aria-pressed="true">5v5</button><button id="duelModeBtn" class="mode-option" aria-pressed="false">1v1</button>
+        </div>
         <div class="lobby-status"><span class="status-dot"></span><strong>LOBBY OTEVŘENÁ</strong><span>• 1/10 hráčů</span></div>
-        <div class="lobby-players"><div class="lobby-player you"><span class="player-avatar">TY</span><span><strong>Ty</strong><small>Připraven k výběru</small></span><b id="readyMark">○</b></div><div class="lobby-player"><span class="player-avatar bot">AI</span><span><strong>Červený tým</strong><small>5 protivníků čeká</small></span><b>✓</b></div></div>
+        <div class="lobby-players"><div class="lobby-player you"><span class="player-avatar">TY</span><span><strong>Ty</strong><small>Připraven k výběru</small></span><b id="readyMark">○</b></div><div class="lobby-player"><span class="player-avatar bot">AI</span><span><strong id="opponentLabel">Červený tým</strong><small id="opponentDetail">5 protivníků čeká</small></span><b>✓</b></div></div>
         <div id="teamGrid" class="team-grid"></div>
         <section id="mapPicker" class="event-map-panel" aria-labelledby="mapTitle">
           <h2 id="mapTitle"><span class="map-title-icon" aria-hidden="true">▰</span> Vyber mapu <span id="selectedMapLabel">—</span></h2>
@@ -42,6 +47,7 @@
       </div>
       <div id="playerRoster" class="roster-modal" hidden><div class="roster-card"><button id="closeRoster" class="roster-close">×</button><p class="eyebrow">WATER BATTLE · HRÁČI</p><h2 id="rosterTitle">Vyber tým</h2><p id="rosterSubtitle">Nejdříve vyber tým.</p><div id="rosterGrid" class="roster-grid"></div></div></div>
       <div id="mapPreview" class="roster-modal" hidden><div class="map-preview-card"><button id="closeMapPreview" class="roster-close">×</button><p class="eyebrow">NÁHLED MAPY</p><h2 id="previewMapTitle">Mapa</h2><p id="previewMapMission"></p><canvas id="previewMapCanvas" width="620" height="360"></canvas></div></div>
+      <div id="upgradesModal" class="roster-modal" hidden><div class="upgrade-card"><button id="closeUpgrades" class="roster-close">×</button><p class="eyebrow">WATER BATTLE · VYLEPŠENÍ</p><h2>UPGRADY</h2><p class="upgrade-intro">Vylepši svého bojovníka před další bitvou.</p><div id="upgradeGrid" class="upgrade-grid"></div></div></div>
     </section>
 
     <section id="game" class="screen">
