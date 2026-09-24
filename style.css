@@ -1,3 +1,4 @@
+.coin-icon{width:16px;height:16px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block}
 :root{
   --bg:#03111f;--panel:#071b2d;--line:#123a5a;--cyan:#28d7ff;--blue:#0b7dff;--text:#eaf8ff;--muted:#83a9c4;
 }

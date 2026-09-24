@@ -47,20 +47,36 @@ menuBtn.onclick=e=>{e.stopPropagation();const open=hamburgerMenu.hidden;hamburge
 document.addEventListener('click',e=>{if(!hamburgerMenu.hidden&&!hamburgerMenu.contains(e.target)&&e.target!==menuBtn){hamburgerMenu.hidden=true;menuBtn.setAttribute('aria-expanded','false')}});
 const missionText = document.querySelector('#missionText');
 const killFeed=document.querySelector('#killFeed');
-let audioContext=null, missionKills=0, particles=[];
-const upgrades={power:false,fireRate:false,speed:false};
+let audioContext=null, missionKills=0, particles=[],missionNoticeTimer=null;
+const MAX_UPGRADE_LEVEL=11;
+const upgrades={power:0,fireRate:0,speed:0,health:0,projectileSpeed:0,range:0,shield:0,critical:0,cooldown:0,energy:0};
 const upgradeDefinitions=[
-  ['power','💥','SÍLA STŘELBY','Střely ubírají 2 životy místo 1.'],['fireRate','⚡','RYCHLOST STŘELBY','Střílej o 35 % rychleji.'],['speed','🏃','RYCHLEJŠÍ CHŮZE','Pohybuj se o 30 % rychleji.'],
-  ['health','❤️','VÍCE ŽIVOTŮ','Maximum životů se zvýší ze 3 na 5.'],['projectileSpeed','🚀','RYCHLEJŠÍ STŘELY','Střely letí o 25 % rychleji.'],['range','🎯','DELŠÍ DOSAH','Střely vydrží ve vzduchu déle.'],
-  ['shield','🛡️','VODNÍ ŠTÍT','První zásah po respawnu neublíží.'],['critical','⭐','KRITICKÝ ZÁSAH','Každá třetí střela způsobí bonusové poškození.'],['cooldown','🔄','RYCHLÝ RESPAWN','Po vyřazení se vrátíš do hry rychleji.'],['energy','🔋','VÍCE ENERGIE','Zvládneš delší nepřetržitou střelbu.']
+  ['power','💥','SÍLA STŘELBY','Každá úroveň přidá poškození střel.'],['fireRate','⚡','RYCHLOST STŘELBY','Každá úroveň zkrátí dobu mezi střelami.'],['speed','🏃','RYCHLEJŠÍ CHŮZE','Každá úroveň zrychlí pohyb.'],
+  ['health','❤️','VÍCE ŽIVOTŮ','Každá úroveň přidá maximum životů.'],['projectileSpeed','🚀','RYCHLEJŠÍ STŘELY','Každá úroveň zrychlí let střel.'],['range','🎯','DELŠÍ DOSAH','Každá úroveň prodlouží dolet střel.'],
+  ['shield','🛡️','VODNÍ ŠTÍT','Každá úroveň pohltí jeden zásah po respawnu.'],['critical','⭐','KRITICKÝ ZÁSAH','Každá úroveň zvyšuje šanci na bonusové poškození.'],['cooldown','🔄','RYCHLÝ RESPAWN','Každá úroveň zkrátí návrat do hry.'],['energy','🔋','VÍCE ENERGIE','Každá úroveň prodlouží nepřetržitou střelbu.']
 ];
 const upgradesModal=document.querySelector('#upgradesModal');
-function showUpgrades(){const grid=document.querySelector('#upgradeGrid');grid.replaceChildren();upgradeDefinitions.forEach(([key,icon,name,desc])=>{const item=document.createElement('div');item.className='upgrade-item'+(upgrades[key]?' active':'');item.innerHTML=`<div class="upgrade-symbol">${icon}</div><strong>${name}</strong><small>${desc}</small>`;const button=document.createElement('button');button.textContent=upgrades[key]?'AKTIVNÍ':'VYLEPŠIT';button.disabled=upgrades[key];button.onclick=()=>{upgrades[key]=true;showUpgrades()};item.append(button);grid.append(item)});upgradesModal.hidden=false}
+let coins=Number(localStorage.getItem('waterBattleCoins')||0),taskKills=Number(localStorage.getItem('waterBattleTaskKills')||0),taskWins=Number(localStorage.getItem('waterBattleTaskWins')||0),taskRound=Number(localStorage.getItem('waterBattleTaskRound')||0),taskKillReward=localStorage.getItem('waterBattleTaskKillReward')==='1',taskTenKillReward=localStorage.getItem('waterBattleTaskTenKillReward')==='1',taskWinReward=localStorage.getItem('waterBattleTaskWinReward')==='1';
+const coinCount=document.querySelector('#coinCount');
+const coinCountLobby=document.querySelector('#coinCountLobby');
+const coinIcon='<img class="coin-icon" style="width:16px;height:16px;object-fit:cover;border-radius:50%;vertical-align:middle" src="images/water_coin.png" alt="Vodní mince">';
+function updateCoins(){coinCount.textContent=coins;coinCountLobby.textContent=coins;localStorage.setItem('waterBattleCoins',String(coins))}
+function updateTasks(){localStorage.setItem('waterBattleTaskKills',String(taskKills));localStorage.setItem('waterBattleTaskWins',String(taskWins));if(!tasksModal.hidden)showTasks()}
+function upgradeCost(level){return 10+level*10}
+function showUpgrades(){updateCoins();const grid=document.querySelector('#upgradeGrid');grid.replaceChildren();upgradeDefinitions.forEach(([key,icon,name,desc])=>{const level=upgrades[key],cost=upgradeCost(level);const item=document.createElement('div');item.className='upgrade-item'+(level?' active':'');item.innerHTML=`<div class="upgrade-symbol">${icon}</div><strong>${name}</strong><small>${desc}</small><div class="upgrade-level">ÚROVEŇ ${level}/${MAX_UPGRADE_LEVEL}</div>`;const button=document.createElement('button');button.innerHTML=level>=MAX_UPGRADE_LEVEL?'MAX ÚROVEŇ':`KOUPIT · ${cost} ${coinIcon}`;button.disabled=level>=MAX_UPGRADE_LEVEL||coins<cost;button.onclick=()=>{if(upgrades[key]<MAX_UPGRADE_LEVEL&&coins>=cost){coins-=cost;upgrades[key]++;showUpgrades()}};item.append(button);grid.append(item)});upgradesModal.hidden=false}
+updateCoins();
 document.querySelector('#upgradesBtn').onclick=showUpgrades;document.querySelector('#closeUpgrades').onclick=()=>upgradesModal.hidden=true;upgradesModal.onclick=e=>{if(e.target===upgradesModal)upgradesModal.hidden=true};
+const tasksModal=document.querySelector('#tasksModal'),tasksList=document.querySelector('#tasksList');
+function claimTask(type){const goals=taskRound%2?{a:15,b:30,w:3}:{a:5,b:10,w:1};if(type==='kill5'&&!taskKillReward&&taskKills>=goals.a){coins+=25;taskKillReward=true;localStorage.setItem('waterBattleTaskKillReward','1')}if(type==='kill10'&&!taskTenKillReward&&taskKills>=goals.b){coins+=50;taskTenKillReward=true;localStorage.setItem('waterBattleTaskTenKillReward','1')}if(type==='win'&&!taskWinReward&&taskWins>=goals.w){coins+=50;taskWinReward=true;localStorage.setItem('waterBattleTaskWinReward','1')}updateCoins();showTasks()}
+function resetTasks(){taskKills=0;taskWins=0;taskRound++;taskKillReward=false;taskTenKillReward=false;taskWinReward=false;localStorage.setItem('waterBattleTaskRound',String(taskRound));localStorage.removeItem('waterBattleTaskKills');localStorage.removeItem('waterBattleTaskWins');localStorage.removeItem('waterBattleTaskKillReward');localStorage.removeItem('waterBattleTaskTenKillReward');localStorage.removeItem('waterBattleTaskWinReward');showTasks()}
+function taskButton(type,ready,claimed){return ready&&!claimed?`<button onclick="claimTask('${type}')">VYZVEDNOUT</button>`:claimed?'✓ VYZVEDNUTO':''}
+function showTasks(){const alternate=taskRound%2===1;const goals=alternate?{a:15,b:30,w:3}:{a:5,b:10,w:1};const allClaimed=taskKillReward&&taskTenKillReward&&taskWinReward;tasksList.innerHTML=`<div class="upgrade-item active"><strong>${alternate?'💧 ELITNÍ STŘELEC':'🎯 ZABIJ 5 HRÁČŮ'}</strong><small>${alternate?'Vyřaď 15 soupeřů.':'Vyřaď soupeře v bitvách.'}</small><div class="upgrade-level">${Math.min(taskKills,goals.a)}/${goals.a} · ODMĚNA 25 💧🌊</div>${taskButton('kill5',taskKills>=goals.a,taskKillReward)}</div><div class="upgrade-item active"><strong>${alternate?'🌊 VLÁDCE ARÉNY':'🔥 ZABIJ 10 HRÁČŮ'}</strong><small>${alternate?'Vyřaď celkem 30 soupeřů.':'Staň se nejlepším střelcem.'}</small><div class="upgrade-level">${Math.min(taskKills,goals.b)}/${goals.b} · ODMĚNA 50 💧🌊</div>${taskButton('kill10',taskKills>=goals.b,taskTenKillReward)}</div><div class="upgrade-item"><strong>${alternate?'👑 ŠAMPION':'🏆 VYHRAJ BITVU'}</strong><small>${alternate?'Vyhraj tři bitvy.':'Vyhraj jeden zápas.'}</small><div class="upgrade-level">${Math.min(taskWins,goals.w)}/${goals.w} · ODMĚNA 50 💧🌊</div>${taskButton('win',taskWins>=goals.w,taskWinReward)}</div>${allClaimed?'<button onclick="resetTasks()">OBNOVIT ÚKOLY</button>':''}`;tasksModal.hidden=false}
+document.querySelector('#tasksBtn').onclick=e=>{e.stopPropagation();hamburgerMenu.hidden=true;menuBtn.setAttribute('aria-expanded','false');showTasks()};document.querySelector('#closeTasks').onclick=()=>tasksModal.hidden=true;tasksModal.onclick=e=>{if(e.target===tasksModal)tasksModal.hidden=true};
 function unlockAudio(){if(!audioContext)audioContext=new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume()}
 function sound(type){const now=(audioContext||{}).currentTime||0,osc=audioContext.createOscillator(),gain=audioContext.createGain(),s={shoot:[260,.06,'square',.035],hit:[110,.12,'sawtooth',.06],ko:[70,.28,'triangle',.1],win:[520,.5,'sine',.08],lose:[120,.45,'sine',.06]}[type];osc.type=s[2];osc.frequency.setValueAtTime(s[0],now);osc.frequency.exponentialRampToValueAtTime(s[0]*(type==='win'?1.8:.55),now+s[1]);gain.gain.setValueAtTime(s[3],now);gain.gain.exponentialRampToValueAtTime(.001,now+s[1]);osc.connect(gain).connect(audioContext.destination);osc.start(now);osc.stop(now+s[1])}
 function burst(x,y,color,count=12){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*180;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.45+Math.random()*.35,color,size:2+Math.random()*4})}}
 function updateMission(){const m=maps[selectedMap];missionText.textContent=missionKills>=m.goal?'MISE SPLNĚNA!':m.missionText+' · '+missionKills+'/'+m.goal;missionText.classList.toggle('complete',missionKills>=m.goal)}
+function showMissionComplete(){message.textContent='MISE SPLNĚNA!';message.classList.add('complete');clearTimeout(missionNoticeTimer);missionNoticeTimer=setTimeout(()=>{message.textContent='';message.classList.remove('complete')},3000)}
 function recordElimination(attacker,victim){
   const entry=document.createElement('li');
   const killer=document.createElement('span'),target=document.createElement('span');
@@ -120,7 +136,7 @@ function showSkins(){
 
 teams.forEach((t,i)=>{
   // Display the logo panel in the upper left of each team reference sheet.
-  const crops=[[0,.035,.258,.615],[0,.032,.261,.580],[0,.035,.259,.62],[0,.012,.273,.635],[0,.012,.276,.637]];
+  const crops=[[0,.035,.258,.615],[0,.032,.261,.580],[0,.035,.259,.62],[.025,.035,.245,.590],[.025,.035,.248,.590]];
   t.image=new Image();
   t.skinIndex=0;
   t.skins=skinNames[i].map(name=>{const portrait=document.createElement('canvas');portrait.width=128;portrait.height=128;portrait.setAttribute('aria-hidden','true');return {name,canvas:portrait}});
@@ -230,7 +246,7 @@ function resetMatch(){
   const w=world.width,h=world.height;
   const enemyChoices=teams.filter(t=>t!==selectedTeam);
   enemyTeam=enemyChoices[Math.floor(Math.random()*enemyChoices.length)];
-  player={x:w*.22,y:h*.5,r:18,speed:260*(upgrades.speed?1.3:1),maxHp:upgrades.health?5:3,hp:upgrades.health?5:3,color:'#28d7ff',side:'blue'};
+  player={x:w*.22,y:h*.5,r:18,speed:260*(1+upgrades.speed*.03),maxHp:3+upgrades.health,hp:3+upgrades.health,color:'#28d7ff',side:'blue',shield:upgrades.shield};
   const bot=side=>({x:0,y:0,r:18,speed:170,hp:3,color:side==='blue'?'#28d7ff':'#ff547d',side,cool:1});
   blueTeam=[player,...Array.from({length:gameMode==='1v1'?0:4},()=>bot('blue'))];
   const availableSkins=selectedTeam.skins.map((_,i)=>i).filter(i=>i!==selectedTeam.skinIndex);
@@ -252,14 +268,15 @@ function respawn(){
     const spots=[];
     for(let x=80;x<world.width-80;x+=64)for(let y=80;y<world.height-80;y+=64)if(!blocked(x,y,36)&&placed.every(v=>Math.hypot(x-v.x,y-v.y)>55))spots.push({x,y});
     spots.sort((a,b)=>Math.hypot(a.x-anchor.x,a.y-anchor.y)-Math.hypot(b.x-anchor.x,b.y-anchor.y));
-    Object.assign(u,spots[0],{hp:u===player?(player.maxHp||3):3,cool:1+Math.random(),navCool:Math.random(),target:null,respawnTime:0});placed.push(u);
+    Object.assign(u,spots[0],{hp:u===player?(player.maxHp||3):3,shield:u===player?upgrades.shield:0,cool:1+Math.random(),navCool:Math.random(),target:null,respawnTime:0});placed.push(u);
   }
   enemy.navCool=0;enemy.target=null;updateCamera();
 }
 function updateScore(){pScoreEl.textContent=pScore;eScoreEl.textContent=eScore}
 function shoot(from,toX,toY,list,color){
   const dx=toX-from.x,dy=toY-from.y,l=Math.hypot(dx,dy)||1;
-  list.push({x:from.x,y:from.y,vx:dx/l*520,vy:dy/l*520,r:6,damage:from===player&&upgrades.power?2:1,color,life:1.5,attacker:{name:from.name,side:from.side}});if(from===player)sound('shoot');
+  const playerUpgrade=from===player, critical=playerUpgrade&&upgrades.critical>0&&Math.random()<upgrades.critical*.03;
+  list.push({x:from.x,y:from.y,vx:dx/l*(520*(1+(playerUpgrade?upgrades.projectileSpeed*.04:0))),vy:dy/l*(520*(1+(playerUpgrade?upgrades.projectileSpeed*.04:0))),r:6,damage:(playerUpgrade?1+Math.floor(upgrades.power/3):1)+(critical?1:0),color,life:1.5*(1+(playerUpgrade?upgrades.range*.08:0)),attacker:{name:from.name,side:from.side}});if(from===player)sound('shoot');
 }
 function playerShoot(x,y){if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
@@ -276,19 +293,20 @@ function hit(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r}
 function roundWin(who){
   if(who==='player')pScore++;else eScore++;updateScore();
   const scoreLimit=gameMode==='1v1'?3:20;
-  if(pScore>=scoreLimit||eScore>=scoreLimit){running=false;const won=pScore>eScore;message.textContent=won?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';sound(won?'win':'lose');returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
+  if(pScore>=scoreLimit||eScore>=scoreLimit){running=false;const won=pScore>eScore;if(won){taskWins++;updateTasks()}message.textContent=won?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';sound(won?'win':'lose');returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
+  else if(gameMode==='1v1'){message.textContent='KOLO VYHRÁNO!';setTimeout(()=>{if(running){message.textContent='';respawn()}},700)}
 }
 function revive(u){
   const avoid=[...blueTeam,...redTeam].filter(v=>v.hp>0).map(v=>({...v,distance:v.side===u.side?60:300}));
   const p=chooseSpawn(avoid)||chooseSpawn([]);Object.assign(u,p,{hp:u===player?player.maxHp:3,cool:1,navCool:0,target:null});
-  if(u===player)message.textContent='';
+  if(u===player){player.shield=upgrades.shield;message.textContent='';}
 }
 
 function update(dt){
   const w=world.width,h=world.height; let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy--; if(keys['s']||keys['arrowdown'])dy++; if(keys['a']||keys['arrowleft'])dx--; if(keys['d']||keys['arrowright'])dx++;
   if(touchMove){const tx=touchMove.x-touchMove.sx,ty=touchMove.y-touchMove.sy,tl=Math.hypot(tx,ty)||1;dx+=tx/Math.max(55,tl);dy+=ty/Math.max(55,tl)}
-  touchFireTimer-=dt;if(touchAim&&touchFireTimer<=0&&player.hp>0){playerShoot(touchAim.x,touchAim.y);touchFireTimer=upgrades.fireRate?.13:.2}
+  touchFireTimer-=dt;if(touchAim&&touchFireTimer<=0&&player.hp>0){playerShoot(touchAim.x,touchAim.y);touchFireTimer=.2/(1+upgrades.fireRate*.08)}
   const l=Math.hypot(dx,dy)||1; if(player.hp>0)moveUnit(player,dx/l*player.speed*dt,dy/l*player.speed*dt);
   player.x=Math.max(player.r,Math.min(w-player.r,player.x));player.y=Math.max(player.r,Math.min(h-player.r,player.y));
 
@@ -306,7 +324,7 @@ function update(dt){
   for(const s of [...shots,...enemyShots]){const next={x:s.x+s.vx*dt,y:s.y+s.vy*dt};if(!clearPath(s,next,s.r))s.life=0;s.x=next.x;s.y=next.y;s.life-=dt}
   for(const [bullets,targets,side] of [[shots,redTeam,'player'],[enemyShots,blueTeam,'enemy']]){
     for(const s of bullets){if(s.life<=0)continue;const victim=targets.find(u=>u.hp>0&&hit(s,u));if(!victim)continue;
-      s.life=0;victim.hp-=s.damage||1;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=3;recordElimination(s.attacker,victim);if(s.attacker.name===player.name){missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){message.textContent='MISE SPLNĚNA!';sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
+      s.life=0;if(victim===player&&player.shield>0){player.shield--;burst(victim.x,victim.y,'#65e6a7',12);sound('hit');continue}victim.hp-=s.damage||1;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=Math.max(.7,3-upgrades.cooldown*.18);recordElimination(s.attacker,victim);if(s.attacker.name===player.name){coins+=5;taskKills++;updateCoins();updateTasks();missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){showMissionComplete();sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
     }
   }
   shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20); enemyShots=enemyShots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20);
