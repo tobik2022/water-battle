@@ -40,6 +40,26 @@ node server.js
 
 Tato větev obsahuje backend a frontend, nikoli nasazení na veřejnou adresu. Nasaď celý projekt na server podporující dlouho běžící proces Node.js a HTTPS. Pouhý statický hosting backend nespustí. Klienti i API musí být na stejném původu. Reverzní proxy musí pro `/api/events` vypnout buffering a povolit dlouhá SSE spojení; server posílá heartbeat každých 5 sekund. Pokud proxy ukládá URL do access logu, vynech u `/api/events` query string obsahující relační token.
 
+#### Apache2 na `https://bicik.net/water_battle/`
+
+Soubor [`deploy/apache2-water-battle.conf`](deploy/apache2-water-battle.conf) obsahuje HTTPS VirtualHost, přesměrování HTTP, Let’s Encrypt challenge a reverse proxy na Node.js. Zkopíruj projekt na server, spusť backend pouze lokálně (`HOST=127.0.0.1 PORT=3000 node server.js`) a nainstaluj konfiguraci:
+
+```sh
+sudo apt install apache2 certbot python3-certbot-apache
+sudo a2enmod ssl proxy proxy_http headers rewrite
+sudo mkdir -p /var/www/letsencrypt/.well-known/acme-challenge
+sudo cp deploy/apache2-water-battle.conf /etc/apache2/sites-available/bicik.net.conf
+sudo a2ensite bicik.net.conf
+# Poprvé certifikát vystav před prvním reloadem SSL vhostu. Pokud certifikát
+# ještě neexistuje, dočasně použij pouze HTTP část vhostu nebo `certbot --apache`.
+sudo certbot certonly --webroot -w /var/www/letsencrypt -d bicik.net
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+sudo systemctl reload apache2
+```
+
+Konfigurace posílá `/water_battle/api/events` přes dlouhé SSE spojení a ostatní požadavky pod `/water_battle/` do Node.js. DNS záznam `bicik.net` musí ukazovat na server a porty 80/443 musí být dostupné z internetu.
+
 ## Ovládání
 
 - PC: WASD / šipky pro pohyb, myš pro míření, klik pro střelbu; online lze tlačítko držet.

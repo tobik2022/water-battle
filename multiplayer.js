@@ -3,6 +3,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const storageKey = 'waterBattleOnlineSession';
+  const apiBase = document.querySelector('base')?.getAttribute('href')?.replace(/\/$/, '') || '';
+  const apiPath = path => `${apiBase}${path}`;
   let enabled = false, session = null, room = null, stream = null, connected = false;
   let reconnectTimer = null, busy = false, inputPending = false, sendIn = 0, shot = null;
   let latestState = null, lastEvent = 0;
@@ -18,7 +20,7 @@
   };
 
   async function api(path, data, token) {
-    const response = await fetch(path, {
+    const response = await fetch(apiPath(path), {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(data), signal: AbortSignal.timeout(4000),
     });
@@ -119,7 +121,7 @@
   function openStream() {
     stream?.close();
     const owner = session;
-    const source = new EventSource(`/api/events?token=${encodeURIComponent(owner.token)}`);
+    const source = new EventSource(apiPath(`/api/events?token=${encodeURIComponent(owner.token)}`));
     stream = source;
     source.onopen = () => {
       if (session !== owner) return;
