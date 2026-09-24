@@ -188,7 +188,7 @@
       clearTimeout(returnToMenuTimer); clearTimeout(missionNoticeTimer);
       message.classList.remove('complete'); clearControls();
       blueTeam = []; redTeam = []; shots = []; enemyShots = []; particles = []; lastSpawns = [];
-      lastEvent = 0; sendIn = 0; killFeed.replaceChildren();
+      lastEvent = 0; sendIn = 0;
       selectedMap = state.map; gameMode = state.mode;
       onlineFrame = frame; onlineShoot = (x, y) => { if (connected) shot = { x: x + camera.x, y: y + camera.y }; };
       welcome.classList.remove('active'); menu.classList.remove('active'); game.classList.add('active', 'is-online');
@@ -211,7 +211,7 @@
     teamName.textContent = player.side === 'blue' ? 'MODŘÍ · ONLINE' : 'ČERVENÍ · ONLINE';
     missionText.classList.remove('complete'); missionText.textContent = `Tvoje vyřazení: ${player.kills} · Cíl týmu: ${state.limit}`;
     for (const event of state.events) if (event.id > lastEvent) {
-      recordElimination(event.attacker, event.victim); lastEvent = event.id;
+      lastEvent = event.id;
       if (audioContext) sound('ko');
     }
     if (state.winner) {
@@ -239,8 +239,9 @@
       const tx = touchMove.x - touchMove.sx, ty = touchMove.y - touchMove.sy, length = Math.max(55, Math.hypot(tx, ty));
       dx += tx / length; dy += ty / length;
     }
-    const aim = shot || { x: (touchAim?.x ?? pointer.x) + camera.x, y: (touchAim?.y ?? pointer.y) + camera.y };
-    const fire = !!shot || !!touchAim || (!touchMove && pointer.down);
+    const touchTarget = touchAimTarget();
+    const aim = shot || { x: (touchTarget?.x ?? pointer.x) + camera.x, y: (touchTarget?.y ?? pointer.y) + camera.y };
+    const fire = !!shot || !!touchTarget || pointer.down;
     shot = null;
     const owner = session;
     inputPending = true;

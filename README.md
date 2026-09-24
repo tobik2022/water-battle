@@ -43,7 +43,7 @@ Tato větev obsahuje backend a frontend, nikoli nasazení na veřejnou adresu. N
 ## Ovládání
 
 - PC: WASD / šipky pro pohyb, myš pro míření, klik pro střelbu; online lze tlačítko držet.
-- Mobil: levá polovina plátna pro pohyb, pravá pro míření a střelbu.
+- Mobil: vlevo táhni prstem pro pohyb. Vpravo táhni prstem ve směru střelby (i doleva); směr se počítá od začátku dotyku. Držením mimo střed střílíš, návratem do středu nebo puštěním prstu střelbu zastavíš. Oba ovladače fungují současně.
 - **MENU** během online hry opustí místnost.
 
 Po krátkém výpadku se spojení automaticky obnovuje. Server drží hráčovo místo přibližně 15 sekund; obnovení stránky ve stejné kartě zachová identitu. Ovládání bez nových vstupů se zastaví po 400 ms. Po odchodu zakladatele přebírá vedení další hráč. Když během bitvy odejde celý tým, zbývající hráči se vrátí do lobby.

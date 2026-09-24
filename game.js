@@ -46,7 +46,6 @@ const menuBtn=document.querySelector('#menuBtn'), hamburgerMenu=document.querySe
 menuBtn.onclick=e=>{e.stopPropagation();const open=hamburgerMenu.hidden;hamburgerMenu.hidden=!open;menuBtn.setAttribute('aria-expanded',String(open))};
 document.addEventListener('click',e=>{if(!hamburgerMenu.hidden&&!hamburgerMenu.contains(e.target)&&e.target!==menuBtn){hamburgerMenu.hidden=true;menuBtn.setAttribute('aria-expanded','false')}});
 const missionText = document.querySelector('#missionText');
-const killFeed=document.querySelector('#killFeed');
 let audioContext=null, missionKills=0, particles=[],missionNoticeTimer=null;
 const MAX_UPGRADE_LEVEL=11;
 const upgrades={power:0,fireRate:0,speed:0,health:0,projectileSpeed:0,range:0,shield:0,critical:0,cooldown:0,energy:0};
@@ -77,15 +76,6 @@ function sound(type){const now=(audioContext||{}).currentTime||0,osc=audioContex
 function burst(x,y,color,count=12){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*180;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.45+Math.random()*.35,color,size:2+Math.random()*4})}}
 function updateMission(){const m=maps[selectedMap];missionText.textContent=missionKills>=m.goal?'MISE SPLNĚNA!':m.missionText+' · '+missionKills+'/'+m.goal;missionText.classList.toggle('complete',missionKills>=m.goal)}
 function showMissionComplete(){message.textContent='MISE SPLNĚNA!';message.classList.add('complete');clearTimeout(missionNoticeTimer);missionNoticeTimer=setTimeout(()=>{message.textContent='';message.classList.remove('complete')},3000)}
-function recordElimination(attacker,victim){
-  const entry=document.createElement('li');
-  const killer=document.createElement('span'),target=document.createElement('span');
-  killer.className=attacker.side;target.className=victim.side;
-  killer.textContent=attacker.name;target.textContent=victim.name;
-  entry.append(killer,document.createTextNode(' vyřadil/a '),target);
-  killFeed.prepend(entry);
-  while(killFeed.children.length>5)killFeed.lastElementChild.remove();
-}
 let selectedTeam = null;
 let enemyTeam = null;
 function showRoster(){
@@ -213,7 +203,7 @@ function returnToTeamSelection(){
   clearTimeout(returnToMenuTimer);returnToMenuTimer=null;running=false;
   clearTimeout(missionNoticeTimer);message.classList.remove('complete');
   cancelAnimationFrame(animationFrame);
-  touchMove=null;touchAim=null;pointer.down=false;for(const key in keys)delete keys[key];
+  clearControls();
   message.textContent='';particles=[];game.classList.remove('active');menu.classList.add('active');
 }
 function start(){
@@ -230,7 +220,7 @@ function chooseSpawn(avoid){
   return candidates[Math.floor(Math.random()*candidates.length)];
 }
 function resetMatch(){
-  killFeed.replaceChildren();
+  clearControls();
   const w=world.width,h=world.height;
   const enemyChoices=teams.filter(t=>t!==selectedTeam);
   enemyTeam=enemyChoices[Math.floor(Math.random()*enemyChoices.length)];
@@ -268,15 +258,39 @@ function shoot(from,toX,toY,list,color){
 }
 function playerShoot(x,y){if(onlineShoot){onlineShoot(x,y);return}if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
+function touchAimTarget(){
+  if(!touchAim||!player)return null;
+  const dx=touchAim.x-touchAim.sx,dy=touchAim.y-touchAim.sy,length=Math.hypot(dx,dy);
+  if(length<8)return null;
+  // Aim from the player in the stick's direction, regardless of camera position.
+  return {x:player.x-camera.x+dx/length*200,y:player.y-camera.y+dy/length*200};
+}
+
 addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true); addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointer.x=e.clientX-r.left;pointer.y=e.clientY-r.top});
-canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top; pointer.down=true;pointer.x=x;pointer.y=y;
-  if(e.pointerType==='touch'){canvas.setPointerCapture(e.pointerId);if(x<r.width*.5)touchMove={sx:x,sy:y,x,y,id:e.pointerId};else{touchAim={x,y,id:e.pointerId};playerShoot(x,y)}} else playerShoot(x,y);
+canvas.addEventListener('pointerdown',e=>{
+  if(!running)return;
+  const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(e.pointerType==='touch'){
+    if(x<r.width*.5){if(touchMove)return;touchMove={sx:x,sy:y,x,y,id:e.pointerId}}
+    else{if(touchAim)return;touchAim={sx:x,sy:y,x,y,id:e.pointerId};touchFireTimer=0}
+    canvas.setPointerCapture(e.pointerId);
+  }else{pointer.down=true;pointer.x=x;pointer.y=y;playerShoot(x,y)}
 });
-canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();if(touchMove&&e.pointerId===touchMove.id){touchMove.x=e.clientX-r.left;touchMove.y=e.clientY-r.top}if(touchAim&&e.pointerId===touchAim.id){touchAim.x=e.clientX-r.left;touchAim.y=e.clientY-r.top}});
-canvas.addEventListener('pointerup',e=>{if(touchMove&&e.pointerId===touchMove.id)touchMove=null;if(touchAim&&e.pointerId===touchAim.id)touchAim=null;pointer.down=false});
-canvas.addEventListener('pointercancel',e=>{if(touchMove&&e.pointerId===touchMove.id)touchMove=null;if(touchAim&&e.pointerId===touchAim.id)touchAim=null;pointer.down=false});
-function clearControls(){touchMove=null;touchAim=null;pointer.down=false;for(const key in keys)delete keys[key]}
+canvas.addEventListener('pointermove',e=>{
+  const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(e.pointerType!=='touch'){pointer.x=x;pointer.y=y}
+  if(touchMove&&e.pointerId===touchMove.id){touchMove.x=x;touchMove.y=y}
+  if(touchAim&&e.pointerId===touchAim.id){touchAim.x=x;touchAim.y=y}
+});
+function releasePointer(e){
+  if(touchMove&&e.pointerId===touchMove.id)touchMove=null;
+  if(touchAim&&e.pointerId===touchAim.id){touchAim=null;touchFireTimer=0}
+  if(e.pointerType!=='touch')pointer.down=false;
+}
+canvas.addEventListener('pointerup',releasePointer);
+canvas.addEventListener('pointercancel',releasePointer);
+canvas.addEventListener('lostpointercapture',releasePointer);
+function clearControls(){touchMove=null;touchAim=null;touchFireTimer=0;pointer.down=false;for(const key in keys)delete keys[key]}
 addEventListener('blur',clearControls);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls()});
 addEventListener('pointerup',()=>{if(!touchMove&&!touchAim)pointer.down=false});
@@ -299,7 +313,8 @@ function update(dt){
   const w=world.width,h=world.height; let dx=0,dy=0;
   if(keys['w']||keys['arrowup'])dy--; if(keys['s']||keys['arrowdown'])dy++; if(keys['a']||keys['arrowleft'])dx--; if(keys['d']||keys['arrowright'])dx++;
   if(touchMove){const tx=touchMove.x-touchMove.sx,ty=touchMove.y-touchMove.sy,tl=Math.hypot(tx,ty)||1;dx+=tx/Math.max(55,tl);dy+=ty/Math.max(55,tl)}
-  touchFireTimer-=dt;if(touchAim&&touchFireTimer<=0&&player.hp>0){playerShoot(touchAim.x,touchAim.y);touchFireTimer=.2/(1+upgrades.fireRate*.08)}
+  const aim=touchAimTarget();
+  touchFireTimer-=dt;if(aim&&touchFireTimer<=0&&player.hp>0){playerShoot(aim.x,aim.y);touchFireTimer=.2/(1+upgrades.fireRate*.08)}
   const l=Math.hypot(dx,dy)||1; if(player.hp>0)moveUnit(player,dx/l*player.speed*dt,dy/l*player.speed*dt);
   player.x=Math.max(player.r,Math.min(w-player.r,player.x));player.y=Math.max(player.r,Math.min(h-player.r,player.y));
 
@@ -317,7 +332,7 @@ function update(dt){
   for(const s of [...shots,...enemyShots]){const next={x:s.x+s.vx*dt,y:s.y+s.vy*dt};if(!clearPath(s,next,s.r))s.life=0;s.x=next.x;s.y=next.y;s.life-=dt}
   for(const [bullets,targets,side] of [[shots,redTeam,'player'],[enemyShots,blueTeam,'enemy']]){
     for(const s of bullets){if(s.life<=0)continue;const victim=targets.find(u=>u.hp>0&&hit(s,u));if(!victim)continue;
-      s.life=0;if(victim===player&&player.shield>0){player.shield--;burst(victim.x,victim.y,'#65e6a7',12);sound('hit');continue}victim.hp-=s.damage||1;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=Math.max(.7,3-upgrades.cooldown*.18);recordElimination(s.attacker,victim);if(s.attacker.name===player.name){coins+=5;taskKills++;updateCoins();updateTasks();missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){showMissionComplete();sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
+      s.life=0;if(victim===player&&player.shield>0){player.shield--;burst(victim.x,victim.y,'#65e6a7',12);sound('hit');continue}victim.hp-=s.damage||1;burst(victim.x,victim.y,victim.color,6);sound('hit');if(victim.hp<=0){victim.respawnTime=Math.max(.7,3-upgrades.cooldown*.18);if(s.attacker.name===player.name){coins+=5;taskKills++;updateCoins();updateTasks();missionKills=Math.min(maps[selectedMap].goal,missionKills+1);updateMission();if(missionKills===maps[selectedMap].goal){showMissionComplete();sound('win');burst(player.x,player.y,'#ffd166',30)}}sound('ko');roundWin(side);if(!running)return}
     }
   }
   shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20); enemyShots=enemyShots.filter(s=>s.life>0&&s.x>-20&&s.x<w+20&&s.y>-20&&s.y<h+20);
@@ -339,7 +354,14 @@ function draw(){
   [...shots,...enemyShots].forEach(s=>{ctx.shadowBlur=16;ctx.shadowColor=s.color;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/.7);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
   ctx.restore();drawMinimap();
-  if(touchMove||touchAim){ctx.save();if(touchMove){const dx=touchMove.x-touchMove.sx,dy=touchMove.y-touchMove.sy,l=Math.hypot(dx,dy),max=52,k=Math.min(1,max/(l||1));ctx.globalAlpha=.72;ctx.strokeStyle='#a9edff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(touchMove.sx,touchMove.sy,52,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#32dfff';ctx.beginPath();ctx.arc(touchMove.sx+dx*k,touchMove.sy+dy*k,24,0,Math.PI*2);ctx.fill()}if(touchAim){ctx.globalAlpha=.75;ctx.strokeStyle='#ff8aa8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(touchAim.x,touchAim.y,22,0,Math.PI*2);ctx.moveTo(touchAim.x-30,touchAim.y);ctx.lineTo(touchAim.x+30,touchAim.y);ctx.moveTo(touchAim.x,touchAim.y-30);ctx.lineTo(touchAim.x,touchAim.y+30);ctx.stroke()}ctx.restore()}
+  if(touchMove)drawTouchStick(touchMove,'#32dfff');
+  if(touchAim)drawTouchStick(touchAim,'#ff8aa8');
+}
+function drawTouchStick(stick,color){
+  const dx=stick.x-stick.sx,dy=stick.y-stick.sy,k=Math.min(1,52/(Math.hypot(dx,dy)||1));
+  ctx.save();ctx.globalAlpha=.72;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(stick.sx,stick.sy,52,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(stick.sx+dx*k,stick.sy+dy*k,24,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 function drawMinimap(){
  const mw=Math.min(160,canvas.clientWidth*.3),mh=mw*world.height/world.width;
