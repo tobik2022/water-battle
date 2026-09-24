@@ -28,6 +28,35 @@
         <p class="eyebrow">WATER BATTLE · LOBBY</p>
         <h1>Čekárna bitvy</h1>
         <p id="modeDescription" class="subtitle">Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.</p>
+        <div class="connection-picker" role="group" aria-label="Typ hry">
+          <button id="offlineModeBtn" class="mode-option selected" aria-pressed="true">TRÉNINK S BOTY</button>
+          <button id="onlineModeBtn" class="mode-option" aria-pressed="false">ONLINE S PŘÁTELI</button>
+        </div>
+        <section id="onlinePanel" class="online-panel" hidden aria-labelledby="onlineTitle">
+          <h2 id="onlineTitle">Společně do bitvy</h2>
+          <p class="online-help">Vyber postavu a založ místnost, nebo zadej kód od přítele. Souboj 1v1 či až 5v5, bez botů. Všichni mají stejné vybavení.</p>
+          <p id="onlineStatus" role="status" aria-live="polite">Připraveno k připojení.</p>
+          <div id="onlineConnect">
+            <label class="online-field">Tvoje přezdívka<input id="onlineName" maxlength="20" autocomplete="nickname" placeholder="Vodní hrdina"></label>
+            <div class="online-actions">
+              <button id="createRoomBtn" class="primary">ZALOŽIT MÍSTNOST</button>
+              <label class="online-field">Kód místnosti<input id="roomCodeInput" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1B2C3"></label>
+              <button id="joinRoomBtn" class="ghost">PŘIPOJIT SE</button>
+            </div>
+          </div>
+          <div id="onlineRoom" hidden>
+            <div class="room-heading"><span>KÓD <strong id="roomCode"></strong></span><button id="copyInviteBtn" class="ghost">KOPÍROVAT POZVÁNKU</button><button id="leaveRoomBtn" class="ghost">OPUSTIT</button></div>
+            <input id="inviteLink" class="invite-link" aria-label="Odkaz pro pozvání" readonly>
+            <div class="room-settings">
+              <label class="online-field">Režim<select id="roomMode"><option value="1v1">1v1 · do 3 bodů</option><option value="5v5">Až 5v5 · do 20 bodů</option></select></label>
+              <label class="online-field">Mapa<select id="roomMap"></select></label>
+              <label class="online-field">Tvoje strana<select id="roomSide"><option value="blue">Modří</option><option value="red">Červení</option></select></label>
+            </div>
+            <ul id="onlinePlayers" class="online-players" aria-label="Hráči v místnosti"></ul>
+            <p id="roomHint" class="online-help"></p>
+            <div class="online-actions"><button id="readyBtn" class="ghost" aria-pressed="false">JSEM PŘIPRAVEN</button><button id="startOnlineBtn" class="primary">SPUSTIT BITVU</button></div>
+          </div>
+        </section>
         <div class="mode-picker" role="group" aria-label="Režim hry">
           <span>REŽIM</span><button id="teamModeBtn" class="mode-option selected" aria-pressed="true">5v5</button><button id="duelModeBtn" class="mode-option" aria-pressed="false">1v1</button>
         </div>
@@ -63,9 +92,13 @@
         <ol id="killFeed" aria-live="polite" aria-relevant="additions"></ol>
       </aside>
       <div id="message" class="message"></div>
+      <div id="networkBanner" class="network-banner" role="status" hidden></div>
+      <div id="onlineResult" class="online-result" hidden><p id="onlineResultText"></p><button id="rematchBtn" class="primary">DALŠÍ ZÁPAS</button><button id="resultLeaveBtn" class="ghost">ZPĚT DO MENU</button></div>
       <div class="mobile-help">◀ pohyb &nbsp;&nbsp; | &nbsp;&nbsp; střelba ▶</div>
     </section>
   </main>
+  <script src="shared/maps.js"></script>
   <script src="game.js"></script>
+  <script src="multiplayer.js"></script>
 </body>
 </html>

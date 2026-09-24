@@ -1,0 +1,11 @@
+{
+  "name": "water-battle",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Water Battle with an authoritative multiplayer backend",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

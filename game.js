@@ -96,22 +96,7 @@ function showRoster(){
 }
 document.querySelector('#playersBtn').onclick=showRoster;document.querySelector('#closeRoster').onclick=()=>rosterModal.hidden=true;rosterModal.onclick=e=>{if(e.target===rosterModal)rosterModal.hidden=true};
 let selectedMap = 0;
-const maps = [
-  {name:'Zatopený přístav', icon:'⚓', tint:'#28d7ff', obstacles:[[.30,.12,.12,.22,'pier'],[.58,.66,.12,.22,'pier'],[.30,.66,.12,.22,'pier'],[.58,.12,.12,.22,'pier'],[.46,.40,.08,.20,'island'],[.12,.24,.07,.09,'crate'],[.81,.67,.07,.09,'crate']]},
-  {name:'Korálové bludiště', icon:'🪸', tint:'#ff75c3', obstacles:[[.16,.18,.10,.12,'island'],[.38,.10,.10,.25,'island'],[.62,.65,.10,.25,'island'],[.74,.28,.10,.12,'island'],[.40,.44,.20,.10,'island'],[.14,.66,.12,.10,'crate']]},
-  {name:'Ledová zátoka', icon:'❄️', tint:'#b8f4ff', obstacles:[[.22,.16,.18,.10,'island'],[.60,.16,.18,.10,'island'],[.22,.74,.18,.10,'island'],[.60,.74,.18,.10,'island'],[.45,.30,.10,.40,'pier'],[.08,.43,.12,.08,'crate'],[.80,.49,.12,.08,'crate']]},
-  {name:'Pirátův ostrov', icon:'☠️', tint:'#ffd166', obstacles:[[.40,.16,.20,.18,'island'],[.18,.47,.18,.12,'pier'],[.64,.47,.18,.12,'pier'],[.42,.62,.16,.16,'crate'],[.08,.18,.08,.12,'crate'],[.84,.70,.08,.12,'crate']]},
-  {name:'Bouřkový průliv', icon:'⚡', tint:'#9b8cff', obstacles:[[.14,.10,.08,.30,'pier'],[.78,.60,.08,.30,'pier'],[.34,.36,.32,.08,'pier'],[.34,.56,.32,.08,'pier'],[.46,.18,.08,.14,'crate'],[.46,.68,.08,.14,'crate']]},
-  {name:'Laguna', icon:'🌴', tint:'#65e6a7', obstacles:[[.12,.16,.14,.14,'island'],[.74,.16,.14,.14,'island'],[.12,.70,.14,.14,'island'],[.74,.70,.14,.14,'island'],[.40,.40,.20,.20,'island'],[.30,.12,.08,.08,'crate'],[.62,.80,.08,.08,'crate']]},
-  {name:'Vodní aréna', icon:'✦', tint:'#ff6b9d', obstacles:[[.12,.12,.18,.08,'pier'],[.70,.12,.18,.08,'pier'],[.12,.80,.18,.08,'pier'],[.70,.80,.18,.08,'pier'],[.42,.30,.16,.08,'crate'],[.42,.62,.16,.08,'crate'],[.42,.44,.16,.12,'island']]},
-  {name:'Rozbitá přehrada', icon:'▥', tint:'#ff9f43', obstacles:[[.28,.08,.12,.30,'pier'],[.60,.62,.12,.30,'pier'],[.28,.62,.12,.30,'pier'],[.60,.08,.12,.30,'pier'],[.44,.44,.12,.12,'crate'],[.10,.42,.12,.16,'island'],[.78,.42,.12,.16,'island']]},
-  {name:'Měsíční záliv', icon:'☾', tint:'#c2a7ff', obstacles:[[.20,.22,.12,.12,'island'],[.68,.22,.12,.12,'island'],[.20,.66,.12,.12,'island'],[.68,.66,.12,.12,'island'],[.42,.18,.16,.08,'crate'],[.42,.74,.16,.08,'crate'],[.44,.40,.12,.20,'pier']]},
-  {name:'Tajný kanál', icon:'〰', tint:'#54e0d0', obstacles:[[.10,.30,.26,.08,'pier'],[.64,.30,.26,.08,'pier'],[.10,.62,.26,.08,'pier'],[.64,.62,.26,.08,'pier'],[.42,.28,.16,.08,'island'],[.42,.64,.16,.08,'island'],[.08,.12,.08,.10,'crate'],[.84,.78,.08,.10,'crate']]}
-];
-const mapMissions=[
-  ['Přístavní nájezd',3,'Získej 3 vyřazení'],['Korálový lov',4,'Získej 4 vyřazení'],['Ledová výprava',2,'Získej 2 vyřazení'],['Poklad kapitána',5,'Získej 5 vyřazení'],['Bouřková hlídka',3,'Získej 3 vyřazení bez prohry'],['Ostrovní převaha',4,'Získej 4 vyřazení'],['Arénový šampion',6,'Získej 6 vyřazení'],['Přehradní průlom',3,'Získej 3 vyřazení'],['Měsíční lovec',2,'Získej 2 vyřazení'],['Tichý průchod',5,'Získej 5 vyřazení']
-];
-maps.forEach((m,i)=>{m.mission=mapMissions[i][0];m.goal=mapMissions[i][1];m.missionText=mapMissions[i][2]});
+const maps = WaterBattleMaps;
 maps.forEach((m,i)=>{const b=document.createElement('button');b.className='map-card';b.style.setProperty('--map-accent',m.tint);b.innerHTML=`<span class="map-icon">${m.icon}</span><strong>${m.name}</strong><small>MAPA ${String(i+1).padStart(2,'0')}</small><em>${m.mission}</em><span class="map-info" title="Ukázat mapu">?</span>`;b.onclick=()=>{selectedMap=i;selectedMapLabel.textContent=`· ${m.name}`;document.querySelectorAll('.map-card').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');updateMission()};b.querySelector('.map-info').onclick=e=>{e.stopPropagation();showMapPreview(i)};mapGrid.appendChild(b)});
 mapGrid.firstElementChild.classList.add('selected');
 const skinNames=[
@@ -163,6 +148,7 @@ teams.forEach((t,i)=>{
 });
 
 const keys={}; let pointer={x:0,y:0,down:false}; let running=false, last=0;
+let onlineFrame=null, onlineShoot=null, animationFrame=null;
 let gameMode='5v5';
 const modeDescription=document.querySelector('#modeDescription'), opponentLabel=document.querySelector('#opponentLabel'), opponentDetail=document.querySelector('#opponentDetail');
 function setGameMode(mode){gameMode=mode;const duel=mode==='1v1';document.querySelector('#teamModeBtn').classList.toggle('selected',!duel);document.querySelector('#duelModeBtn').classList.toggle('selected',duel);document.querySelector('#teamModeBtn').setAttribute('aria-pressed',String(!duel));document.querySelector('#duelModeBtn').setAttribute('aria-pressed',String(duel));modeDescription.textContent=duel?'Vyber tým, mapu a skin. Postav se soupeři v souboji jeden proti jednomu.':'Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.';opponentLabel.textContent=duel?'Soupeř':'Červený tým';opponentDetail.textContent=duel?'1 protivník čeká':'5 protivníků čeká'}
@@ -225,13 +211,15 @@ addEventListener('resize',resize);
 let returnToMenuTimer=null;
 function returnToTeamSelection(){
   clearTimeout(returnToMenuTimer);returnToMenuTimer=null;running=false;
+  clearTimeout(missionNoticeTimer);message.classList.remove('complete');
+  cancelAnimationFrame(animationFrame);
   touchMove=null;touchAim=null;pointer.down=false;for(const key in keys)delete keys[key];
   message.textContent='';particles=[];game.classList.remove('active');menu.classList.add('active');
 }
 function start(){
   clearTimeout(returnToMenuTimer);returnToMenuTimer=null;
   menu.classList.remove('active'); game.classList.add('active'); resize();
-  unlockAudio();teamName.textContent=selectedTeam.name; resetMatch(); running=true; last=performance.now(); requestAnimationFrame(loop);
+  unlockAudio();teamName.textContent=selectedTeam.name; resetMatch(); running=true; startGameLoop();
 }
 let lastSpawns=[];
 function chooseSpawn(avoid){
@@ -278,16 +266,21 @@ function shoot(from,toX,toY,list,color){
   const playerUpgrade=from===player, critical=playerUpgrade&&upgrades.critical>0&&Math.random()<upgrades.critical*.03;
   list.push({x:from.x,y:from.y,vx:dx/l*(520*(1+(playerUpgrade?upgrades.projectileSpeed*.04:0))),vy:dy/l*(520*(1+(playerUpgrade?upgrades.projectileSpeed*.04:0))),r:6,damage:(playerUpgrade?1+Math.floor(upgrades.power/3):1)+(critical?1:0),color,life:1.5*(1+(playerUpgrade?upgrades.range*.08:0)),attacker:{name:from.name,side:from.side}});if(from===player)sound('shoot');
 }
-function playerShoot(x,y){if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
+function playerShoot(x,y){if(onlineShoot){onlineShoot(x,y);return}if(running&&player.hp>0)shoot(player,x+camera.x,y+camera.y,shots,player.color)}
 
 addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true); addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();pointer.x=e.clientX-r.left;pointer.y=e.clientY-r.top});
-canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top; pointer.down=true;
+canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top; pointer.down=true;pointer.x=x;pointer.y=y;
   if(e.pointerType==='touch'){canvas.setPointerCapture(e.pointerId);if(x<r.width*.5)touchMove={sx:x,sy:y,x,y,id:e.pointerId};else{touchAim={x,y,id:e.pointerId};playerShoot(x,y)}} else playerShoot(x,y);
 });
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();if(touchMove&&e.pointerId===touchMove.id){touchMove.x=e.clientX-r.left;touchMove.y=e.clientY-r.top}if(touchAim&&e.pointerId===touchAim.id){touchAim.x=e.clientX-r.left;touchAim.y=e.clientY-r.top}});
 canvas.addEventListener('pointerup',e=>{if(touchMove&&e.pointerId===touchMove.id)touchMove=null;if(touchAim&&e.pointerId===touchAim.id)touchAim=null;pointer.down=false});
 canvas.addEventListener('pointercancel',e=>{if(touchMove&&e.pointerId===touchMove.id)touchMove=null;if(touchAim&&e.pointerId===touchAim.id)touchAim=null;pointer.down=false});
+function clearControls(){touchMove=null;touchAim=null;pointer.down=false;for(const key in keys)delete keys[key]}
+addEventListener('blur',clearControls);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls()});
+addEventListener('pointerup',()=>{if(!touchMove&&!touchAim)pointer.down=false});
+addEventListener('keydown',e=>{if(running&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});
 
 function hit(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r}
 function roundWin(who){
@@ -340,8 +333,9 @@ function draw(){
   ctx.strokeStyle='#0a3852';ctx.lineWidth=1;for(let x=0;x<w;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
   for(let i=0;i<18;i++){const x=(i*97+performance.now()*.02)%w,y=(i*53)%h;ctx.fillStyle='#0c7aa733';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,Math.PI*2);ctx.fill()}
   drawHarbor(w,h);
-  for(const u of blueTeam)if(u.hp>0){drawUnit(u,selectedTeam.skins[u.skinIndex].canvas,u.hp);if(u===player){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('TY',u.x,u.y+36)}}
-  for(const u of redTeam)if(u.hp>0)drawUnit(u,enemyTeam?.skins[u.skinIndex]?.canvas||'☠',u.hp);
+  for(const u of blueTeam)if(u.hp>0){drawUnit(u,(teams[u.teamIndex]||selectedTeam).skins[u.skinIndex].canvas,u.hp);if(u===player&&!onlineFrame){ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('TY',u.x,u.y+36)}}
+  for(const u of redTeam)if(u.hp>0)drawUnit(u,(teams[u.teamIndex]||enemyTeam)?.skins[u.skinIndex]?.canvas||'☠',u.hp);
+  if(onlineFrame)for(const u of [...blueTeam,...redTeam])if(u.hp>0){ctx.fillStyle=u===player?'#fff':u.color;ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText(u.name+(u===player?' (TY)':''),u.x,u.y+36);if(u.protection>0){ctx.strokeStyle='#65e6a7';ctx.beginPath();ctx.arc(u.x,u.y,u.r+7,0,Math.PI*2);ctx.stroke()}}
   [...shots,...enemyShots].forEach(s=>{ctx.shadowBlur=16;ctx.shadowColor=s.color;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/.7);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
   ctx.restore();drawMinimap();
@@ -356,7 +350,7 @@ function drawMinimap(){
  ctx.strokeStyle='#ffffff80';ctx.strokeRect(x+camera.x*s,y+camera.y*s,Math.min(canvas.clientWidth,world.width)*s,Math.min(canvas.clientHeight,world.height)*s);
  for(const u of [...blueTeam,...redTeam].filter(u=>u.hp>0)){ctx.fillStyle=u.color;ctx.beginPath();ctx.arc(x+u.x*s,y+u.y*s,3,0,Math.PI*2);ctx.fill()}
  ctx.textAlign='left';ctx.fillStyle=maps[selectedMap].tint;ctx.font='bold 12px system-ui';ctx.fillText(maps[selectedMap].name.toUpperCase(),14,26);
- ctx.font='11px system-ui';const teamSize=gameMode==='1v1'?1:5;const scoreLimit=gameMode==='1v1'?3:20;ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/'+teamSize+' · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/'+teamSize+' · Cíl: '+scoreLimit+' bodů',14,44);ctx.restore();
+ ctx.font='11px system-ui';const teamSize=gameMode==='1v1'?1:5;const scoreLimit=gameMode==='1v1'?3:20;ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?blueTeam.length:teamSize)+' · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?redTeam.length:teamSize)+' · Cíl: '+scoreLimit+' bodů',14,44);ctx.restore();
 }
 function drawHarbor(w,h){
   ctx.save();
@@ -397,6 +391,7 @@ function drawUnit(u,icon,hp){
   ctx.restore();
   ctx.fillStyle='#0b2234';ctx.fillRect(u.x-24,u.y-32,48,5);ctx.fillStyle=u.color;ctx.fillRect(u.x-24,u.y-32,48*(hp/(u.maxHp||3)),5);
 }
-function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
+function startGameLoop(){cancelAnimationFrame(animationFrame);last=performance.now();animationFrame=requestAnimationFrame(loop)}
+function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;if(onlineFrame)onlineFrame(dt);else update(dt);draw();animationFrame=requestAnimationFrame(loop)}
 
 startBtn.onclick=start;document.querySelector('#backBtn').onclick=returnToTeamSelection;
