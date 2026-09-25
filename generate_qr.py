@@ -2,7 +2,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from reportlab.graphics.barcode import qrencoder
 
-URL = 'https://tobik2022.github.io/water-battle/index.html'
+# URL = 'https://tobik2022.github.io/water-battle/index.html'
+URL = 'https://bicik.net/water_battle/'
+
 ROOT = Path(__file__).resolve().parent
 qr = qrencoder.QRCode(None, qrencoder.QRErrorCorrectLevel.H)
 qr.addData(URL)

@@ -68,9 +68,10 @@ function createServer() {
           const result = rooms.join(await body(request), url.pathname === '/api/rooms');
           json(response, 201, result); return;
         }
-        if (url.pathname === '/api/command') {
+        if (url.pathname === '/api/command' || url.pathname === '/api/input') {
           const session = rooms.authenticate(request.headers.authorization?.replace(/^Bearer /, ''));
-          rooms.command(session, await body(request));
+          const data = await body(request);
+          rooms.command(session, url.pathname === '/api/input' ? { ...data, action: 'input' } : data);
           json(response, 200, { ok: true }); return;
         }
         throw new ApiError(404, 'Neznámý endpoint.');

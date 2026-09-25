@@ -1,8 +1,7 @@
 <!doctype html>
 <html lang="cs">
   <head>
-    <base href="/water_battle/" />
-  <meta charset="utf-8" />
+    <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Water Battle — Prototype</title>
   <link rel="stylesheet" href="style.css" />
@@ -35,7 +34,7 @@
         </div>
         <section id="onlinePanel" class="online-panel" hidden aria-labelledby="onlineTitle">
           <h2 id="onlineTitle">Společně do bitvy</h2>
-          <p class="online-help">Vyber postavu a založ místnost, nebo zadej kód od přítele. Souboj 1v1 či až 5v5, bez botů. Všichni mají stejné vybavení.</p>
+          <p class="online-help">Vyber postavu a založ místnost, nebo zadej kód od přítele. Režim 2v2 je bez botů; v 3v3–5v5 server doplní chybějící místa boty.</p>
           <p id="onlineStatus" role="status" aria-live="polite">Připraveno k připojení.</p>
           <div id="onlineConnect">
             <label class="online-field">Tvoje přezdívka<input id="onlineName" maxlength="20" autocomplete="nickname" placeholder="Vodní hrdina"></label>
@@ -49,7 +48,7 @@
             <div class="room-heading"><span>KÓD <strong id="roomCode"></strong></span><button id="copyInviteBtn" class="ghost">KOPÍROVAT POZVÁNKU</button><button id="leaveRoomBtn" class="ghost">OPUSTIT</button></div>
             <input id="inviteLink" class="invite-link" aria-label="Odkaz pro pozvání" readonly>
             <div class="room-settings">
-              <label class="online-field">Režim<select id="roomMode"><option value="1v1">1v1 · do 3 bodů</option><option value="5v5">Až 5v5 · do 20 bodů</option></select></label>
+              <label class="online-field">Režim<select id="roomMode"><option value="1v1">1v1 · do 3 bodů</option><option value="2v2">2v2 · do 8 bodů</option><option value="3v3">3v3 · do 12 bodů</option><option value="4v4">4v4 · do 16 bodů</option><option value="5v5">5v5 · do 20 bodů</option></select></label>
               <label class="online-field">Mapa<select id="roomMap"></select></label>
               <label class="online-field">Tvoje strana<select id="roomSide"><option value="blue">Modří</option><option value="red">Červení</option></select></label>
             </div>
@@ -59,9 +58,9 @@
           </div>
         </section>
         <div class="mode-picker" role="group" aria-label="Režim hry">
-          <span>REŽIM</span><button id="teamModeBtn" class="mode-option selected" aria-pressed="true">5v5</button><button id="duelModeBtn" class="mode-option" aria-pressed="false">1v1</button>
+          <span>REŽIM</span><button id="teamModeBtn" class="mode-option selected" aria-pressed="true">5v5</button><button id="quadModeBtn" class="mode-option" aria-pressed="false">4v4</button><button id="trioModeBtn" class="mode-option" aria-pressed="false">3v3</button><button id="duoModeBtn" class="mode-option" aria-pressed="false">2v2</button><button id="duelModeBtn" class="mode-option" aria-pressed="false">1v1</button>
         </div>
-        <div class="lobby-status"><span class="status-dot"></span><strong>LOBBY OTEVŘENÁ</strong><span>• 1/10 hráčů</span></div>
+        <div class="lobby-status"><span class="status-dot"></span><strong>LOBBY OTEVŘENÁ</strong><span>• 1/5 hráčů</span></div>
         <div class="lobby-players"><div class="lobby-player you"><span class="player-avatar">TY</span><span><strong>Ty</strong><small>Připraven k výběru</small></span><b id="readyMark">○</b></div><div class="lobby-player"><span class="player-avatar bot">AI</span><span><strong id="opponentLabel">Červený tým</strong><small id="opponentDetail">5 protivníků čeká</small></span><b>✓</b></div></div>
         <div id="teamGrid" class="team-grid"></div>
         <section id="mapPicker" class="event-map-panel" aria-labelledby="mapTitle">
@@ -73,7 +72,7 @@
           <div id="skinGrid" class="skin-grid"></div>
         </section>
         <button id="startBtn" class="primary play-button" disabled>PLAY <span>▶</span></button>
-        <p class="hint">PC: WASD / šipky + myš. Mobil: levá část obrazovky = pohyb, pravá = střelba.</p>
+        <p class="hint">PC: WASD / šipky + myš. Mobil a tablet: pevný modrý joystick vlevo = pohyb, oranžový vpravo = střelba.</p>
       </div>
       <div id="playerRoster" class="roster-modal" hidden><div class="roster-card"><button id="closeRoster" class="roster-close">×</button><p class="eyebrow">WATER BATTLE · HRÁČI</p><h2 id="rosterTitle">Vyber tým</h2><p id="rosterSubtitle">Nejdříve vyber tým.</p><div id="rosterGrid" class="roster-grid"></div></div></div>
       <div id="mapPreview" class="roster-modal" hidden><div class="map-preview-card"><button id="closeMapPreview" class="roster-close">×</button><p class="eyebrow">NÁHLED MAPY</p><h2 id="previewMapTitle">Mapa</h2><p id="previewMapMission"></p><canvas id="previewMapCanvas" width="620" height="360"></canvas></div></div>

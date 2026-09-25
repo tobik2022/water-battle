@@ -141,8 +141,22 @@ const keys={}; let pointer={x:0,y:0,down:false}; let running=false, last=0;
 let onlineFrame=null, onlineShoot=null, animationFrame=null;
 let gameMode='5v5';
 const modeDescription=document.querySelector('#modeDescription'), opponentLabel=document.querySelector('#opponentLabel'), opponentDetail=document.querySelector('#opponentDetail');
-function setGameMode(mode){gameMode=mode;const duel=mode==='1v1';document.querySelector('#teamModeBtn').classList.toggle('selected',!duel);document.querySelector('#duelModeBtn').classList.toggle('selected',duel);document.querySelector('#teamModeBtn').setAttribute('aria-pressed',String(!duel));document.querySelector('#duelModeBtn').setAttribute('aria-pressed',String(duel));modeDescription.textContent=duel?'Vyber tým, mapu a skin. Postav se soupeři v souboji jeden proti jednomu.':'Vyber tým, mapu a skin. Připrav se do vodní bitvy 5 proti 5.';opponentLabel.textContent=duel?'Soupeř':'Červený tým';opponentDetail.textContent=duel?'1 protivník čeká':'5 protivníků čeká'}
-document.querySelector('#teamModeBtn').onclick=()=>setGameMode('5v5');document.querySelector('#duelModeBtn').onclick=()=>setGameMode('1v1');
+function modeTeamSize(mode){return mode==='1v1'?1:mode==='2v2'?2:mode==='3v3'?3:mode==='4v4'?4:5}
+function modeScoreLimit(mode){return mode==='1v1'?3:mode==='2v2'?8:mode==='3v3'?12:mode==='4v4'?16:20}
+function setGameMode(mode){
+  gameMode=mode;
+  const buttons={ '5v5':'#teamModeBtn', '4v4':'#quadModeBtn', '3v3':'#trioModeBtn', '2v2':'#duoModeBtn', '1v1':'#duelModeBtn' };
+  Object.entries(buttons).forEach(([value,selector])=>{const button=document.querySelector(selector);button.classList.toggle('selected',value===mode);button.setAttribute('aria-pressed',String(value===mode))});
+  const size=modeTeamSize(mode), duel=mode==='1v1';
+  modeDescription.textContent=duel?'Vyber tým, mapu a skin. Postav se soupeři v souboji jeden proti jednomu.':`Vyber tým, mapu a skin. Připrav se do vodní bitvy ${mode}.`;
+  opponentLabel.textContent=duel?'Soupeř':`${mode} tým`;
+  opponentDetail.textContent=duel?'1 protivník čeká':`${size-1} spoluhráči čekají`;
+}
+document.querySelector('#teamModeBtn').onclick=()=>setGameMode('5v5');
+document.querySelector('#quadModeBtn').onclick=()=>setGameMode('4v4');
+document.querySelector('#trioModeBtn').onclick=()=>setGameMode('3v3');
+document.querySelector('#duoModeBtn').onclick=()=>setGameMode('2v2');
+document.querySelector('#duelModeBtn').onclick=()=>setGameMode('1v1');
 let blueTeam=[],redTeam=[];
 let player, enemy, shots=[], enemyShots=[], pScore=0,eScore=0, touchMove=null, touchAim=null, touchFireTimer=0;
 
@@ -194,6 +208,8 @@ function botTarget(enemy,player){
 function resize(){
   const r=canvas.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2);
   canvas.width=Math.floor(r.width*dpr); canvas.height=Math.floor(r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(touchMove){const anchor=fixedJoystickCenter();touchMove.sx=anchor.x;touchMove.sy=anchor.y}
+  if(touchAim){const anchor=fixedAimJoystickCenter();touchAim.sx=anchor.x;touchAim.sy=anchor.y}
   updateCamera();
 }
 addEventListener('resize',resize);
@@ -226,11 +242,12 @@ function resetMatch(){
   enemyTeam=enemyChoices[Math.floor(Math.random()*enemyChoices.length)];
   player={x:w*.22,y:h*.5,r:18,speed:260*(1+upgrades.speed*.03),maxHp:3+upgrades.health,hp:3+upgrades.health,color:'#28d7ff',side:'blue',shield:upgrades.shield};
   const bot=side=>({x:0,y:0,r:18,speed:170,hp:3,color:side==='blue'?'#28d7ff':'#ff547d',side,cool:1});
-  blueTeam=[player,...Array.from({length:gameMode==='1v1'?0:4},()=>bot('blue'))];
+  const teamSize=modeTeamSize(gameMode);
+  blueTeam=[player,...Array.from({length:teamSize-1},()=>bot('blue'))];
   const availableSkins=selectedTeam.skins.map((_,i)=>i).filter(i=>i!==selectedTeam.skinIndex);
   player.skinIndex=selectedTeam.skinIndex;
   blueTeam.slice(1).forEach((u,i)=>u.skinIndex=availableSkins[i]);
-  redTeam=Array.from({length:gameMode==='1v1'?1:5},()=>bot('red'));enemy=redTeam[0];
+  redTeam=Array.from({length:teamSize},()=>bot('red'));enemy=redTeam[0];
   blueTeam.forEach(u=>u.name=selectedTeam.skins[u.skinIndex].name+(u===player?' (TY)':''));
   redTeam.forEach((u,i)=>{u.skinIndex=i%enemyTeam.skins.length;u.name=enemyTeam.skins[u.skinIndex].name+' · '+enemyTeam.name+(i?' '+(i+1):'')});
   respawn();pScore=0;eScore=0;missionKills=0;particles=[];updateScore();updateMission();message.textContent='';
@@ -266,13 +283,17 @@ function touchAimTarget(){
   return {x:player.x-camera.x+dx/length*200,y:player.y-camera.y+dy/length*200};
 }
 
+function fixedJoystickCenter(){return {x:Math.min(86,Math.max(64,canvas.clientWidth*.2)),y:canvas.clientHeight-88}}
+function fixedAimJoystickCenter(){return {x:canvas.clientWidth-fixedJoystickCenter().x,y:canvas.clientHeight-88}}
+function touchUiEnabled(){return typeof matchMedia==='function'&&matchMedia('(pointer: coarse)').matches}
+
 addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true); addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 canvas.addEventListener('pointerdown',e=>{
   if(!running)return;
   const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
   if(e.pointerType==='touch'){
-    if(x<r.width*.5){if(touchMove)return;touchMove={sx:x,sy:y,x,y,id:e.pointerId}}
-    else{if(touchAim)return;touchAim={sx:x,sy:y,x,y,id:e.pointerId};touchFireTimer=0}
+    if(x<r.width*.5){if(touchMove)return;const anchor=fixedJoystickCenter();touchMove={sx:anchor.x,sy:anchor.y,x,y,id:e.pointerId}}
+    else{if(touchAim)return;const anchor=fixedAimJoystickCenter();touchAim={sx:anchor.x,sy:anchor.y,x,y,id:e.pointerId};touchFireTimer=0}
     canvas.setPointerCapture(e.pointerId);
   }else{pointer.down=true;pointer.x=x;pointer.y=y;playerShoot(x,y)}
 });
@@ -299,7 +320,7 @@ addEventListener('keydown',e=>{if(running&&['ArrowUp','ArrowDown','ArrowLeft','A
 function hit(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r}
 function roundWin(who){
   if(who==='player')pScore++;else eScore++;updateScore();
-  const scoreLimit=gameMode==='1v1'?3:20;
+  const scoreLimit=modeScoreLimit(gameMode);
   if(pScore>=scoreLimit||eScore>=scoreLimit){running=false;const won=pScore>eScore;if(won){taskWins++;updateTasks()}message.textContent=won?'MODŘÍ VYHRÁLI!':'ČERVENÍ VYHRÁLI!';sound(won?'win':'lose');returnToMenuTimer=setTimeout(returnToTeamSelection,2500);}
   else if(gameMode==='1v1'){message.textContent='KOLO VYHRÁNO!';setTimeout(()=>{if(running){message.textContent='';respawn()}},700)}
 }
@@ -354,14 +375,34 @@ function draw(){
   [...shots,...enemyShots].forEach(s=>{ctx.shadowBlur=16;ctx.shadowColor=s.color;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/.7);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
   ctx.restore();drawMinimap();
-  if(touchMove)drawTouchStick(touchMove,'#32dfff');
-  if(touchAim)drawTouchStick(touchAim,'#ff8aa8');
+  if(touchUiEnabled()){
+    drawTouchStick(touchMove,'move');
+    drawTouchStick(touchAim,'aim');
+  }
 }
-function drawTouchStick(stick,color){
-  const dx=stick.x-stick.sx,dy=stick.y-stick.sy,k=Math.min(1,52/(Math.hypot(dx,dy)||1));
-  ctx.save();ctx.globalAlpha=.72;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;
-  ctx.beginPath();ctx.arc(stick.sx,stick.sy,52,0,Math.PI*2);ctx.stroke();
-  ctx.beginPath();ctx.arc(stick.sx+dx*k,stick.sy+dy*k,24,0,Math.PI*2);ctx.fill();ctx.restore();
+function drawTouchStick(stick,type){
+  const aim=type==='aim', anchor=aim?fixedAimJoystickCenter():fixedJoystickCenter();
+  const dx=stick?stick.x-anchor.x:0,dy=stick?stick.y-anchor.y:0,k=Math.min(1,48/(Math.hypot(dx,dy)||1));
+  const knobX=anchor.x+dx*k,knobY=anchor.y+dy*k;
+  ctx.save();ctx.globalAlpha=stick?.id?.86:.62;
+  const base=ctx.createRadialGradient(anchor.x-12,anchor.y-16,8,anchor.x,anchor.y,58);
+  if(aim){base.addColorStop(0,'#ffd09b');base.addColorStop(.72,'#df8755');base.addColorStop(1,'#8a432f')}
+  else{base.addColorStop(0,'#3aa7ff');base.addColorStop(.72,'#1261c5');base.addColorStop(1,'#063478')}
+  ctx.fillStyle=base;ctx.strokeStyle=aim?'#6d3028':'#061e61';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(anchor.x,anchor.y,50,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.globalAlpha=stick?.id?.9:.48;ctx.fillStyle=aim?'#c96d43':'#0b4ca8';ctx.strokeStyle=aim?'#8a3e2d':'#65cfff';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(knobX,knobY,22,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle=aim?'#ffd096':'#87d9ff';ctx.globalAlpha=stick?.id?.8:.35;
+  if(aim){
+    ctx.strokeStyle='#ffd096';ctx.lineWidth=3;ctx.beginPath();ctx.arc(knobX,knobY,9,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(knobX-16,knobY);ctx.lineTo(knobX+16,knobY);ctx.moveTo(knobX,knobY-16);ctx.lineTo(knobX,knobY+16);ctx.stroke();
+  }else{
+    ctx.beginPath();ctx.moveTo(knobX,knobY-13);ctx.lineTo(knobX-7,knobY-4);ctx.lineTo(knobX+7,knobY-4);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(knobX,knobY+13);ctx.lineTo(knobX-7,knobY+4);ctx.lineTo(knobX+7,knobY+4);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(knobX-13,knobY);ctx.lineTo(knobX-4,knobY-7);ctx.lineTo(knobX-4,knobY+7);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(knobX+13,knobY);ctx.lineTo(knobX+4,knobY-7);ctx.lineTo(knobX+4,knobY+7);ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
 }
 function drawMinimap(){
  const mw=Math.min(160,canvas.clientWidth*.3),mh=mw*world.height/world.width;
@@ -372,7 +413,7 @@ function drawMinimap(){
  ctx.strokeStyle='#ffffff80';ctx.strokeRect(x+camera.x*s,y+camera.y*s,Math.min(canvas.clientWidth,world.width)*s,Math.min(canvas.clientHeight,world.height)*s);
  for(const u of [...blueTeam,...redTeam].filter(u=>u.hp>0)){ctx.fillStyle=u.color;ctx.beginPath();ctx.arc(x+u.x*s,y+u.y*s,3,0,Math.PI*2);ctx.fill()}
  ctx.textAlign='left';ctx.fillStyle=maps[selectedMap].tint;ctx.font='bold 12px system-ui';ctx.fillText(maps[selectedMap].name.toUpperCase(),14,26);
- ctx.font='11px system-ui';const teamSize=gameMode==='1v1'?1:5;const scoreLimit=gameMode==='1v1'?3:20;ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?blueTeam.length:teamSize)+' · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?redTeam.length:teamSize)+' · Cíl: '+scoreLimit+' bodů',14,44);ctx.restore();
+  ctx.font='11px system-ui';const teamSize=modeTeamSize(gameMode), scoreLimit=modeScoreLimit(gameMode);ctx.fillText('MODŘÍ '+blueTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?blueTeam.length:teamSize)+' · ČERVENÍ '+redTeam.filter(u=>u.hp>0).length+'/'+(onlineFrame?redTeam.length:teamSize)+' · Cíl: '+scoreLimit+' bodů',14,44);ctx.restore();
 }
 function drawHarbor(w,h){
   ctx.save();

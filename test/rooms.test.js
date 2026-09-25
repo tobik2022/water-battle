@@ -20,13 +20,48 @@ test('rooms isolate players and secrets; 1v1 and 5v5 enforce their capacities', 
   const rooms = new Rooms(); const host = join(rooms, null, '1v1'); join(rooms, host.room.code);
   assert.throws(() => join(rooms, host.room.code), hasStatus(409));
   const teamHost = join(rooms);
-  for (let i = 1; i < 10; i++) join(rooms, teamHost.room.code);
+  for (let i = 1; i < 5; i++) join(rooms, teamHost.room.code);
   assert.throws(() => join(rooms, teamHost.room.code), hasStatus(409));
   const publicRoom = rooms.publicRoom(teamHost.room);
-  assert.equal(publicRoom.players.length, 10);
-  assert.equal(publicRoom.players.filter(p => p.side === 'blue').length, 5);
+  assert.equal(publicRoom.players.length, 5);
+  assert.equal(publicRoom.humanCount, 5);
+  assert.equal(publicRoom.players.filter(p => p.side === 'blue').length, 3);
   assert.equal(JSON.stringify(publicRoom).includes(teamHost.token), false);
   assert.equal(host.room.members.size, 2);
+});
+
+test('5v5 rooms fill missing human players with authoritative bots', () => {
+  const rooms = new Rooms(); const host = join(rooms); const guest = join(rooms, host.room.code);
+  rooms.command(host, { action: 'side', side: 'blue' });
+  rooms.command(guest, { action: 'side', side: 'blue' });
+  for (const session of [host, guest]) rooms.command(session, { action: 'ready', ready: true });
+  rooms.command(host, { action: 'start' });
+  const match = host.room.match;
+  assert.equal(match.players.length, 10);
+  assert.equal(match.players.filter(player => player.bot).length, 8);
+  assert.equal(match.players.filter(player => player.side === 'blue').length, 5);
+  assert.equal(match.players.filter(player => player.side === 'red').length, 5);
+  assert.equal(rooms.publicRoom(host.room).players.filter(player => player.bot).length, 8);
+});
+
+test('2v2 stays human-only while 3v3 and 4v4 fill missing slots with bots', () => {
+  const rooms = new Rooms();
+  const duel = join(rooms, null, '2v2');
+  const duelPlayers = [duel];
+  for (let i = 1; i < 4; i++) duelPlayers.push(join(rooms, duel.room.code));
+  for (const session of duelPlayers) rooms.command(session, { action: 'ready', ready: true });
+  rooms.command(duel, { action: 'start' });
+  assert.equal(duel.room.match.players.length, 4);
+  assert.equal(duel.room.match.players.filter(player => player.bot).length, 0);
+
+  for (const mode of ['3v3', '4v4']) {
+    const host = join(rooms, null, mode);
+    rooms.command(host, { action: 'ready', ready: true });
+    rooms.command(host, { action: 'start' });
+    const expected = mode === '3v3' ? 6 : 8;
+    assert.equal(host.room.match.players.length, expected);
+    assert.equal(host.room.match.players.filter(player => player.bot).length, expected - 1);
+  }
 });
 
 test('only the host can start and change settings, everyone must be ready', () => {
@@ -43,12 +78,14 @@ test('only the host can start and change settings, everyone must be ready', () =
   assert.throws(() => rooms.command(host, { action: 'side', side: 'red' }), hasStatus(409));
 });
 
-test('unbalanced teams cannot start and changing side cancels readiness', () => {
+test('changing side cancels readiness and bots balance the teams', () => {
   const rooms = new Rooms(); const host = join(rooms); const guest = join(rooms, host.room.code);
   rooms.command(guest, { action: 'ready', ready: true });
   rooms.command(guest, { action: 'side', side: 'blue' }); assert.equal(guest.ready, false);
   rooms.command(host, { action: 'ready', ready: true }); rooms.command(guest, { action: 'ready', ready: true });
-  assert.throws(() => rooms.command(host, { action: 'start' }), hasStatus(409));
+  rooms.command(host, { action: 'start' });
+  assert.equal(host.room.status, 'playing');
+  assert.equal(host.room.match.players.filter(player => player.side === 'red').length, 5);
 });
 
 test('refresh reconnects the same identity; expired disconnect transfers host and releases empty rooms', () => {
@@ -63,12 +100,14 @@ test('refresh reconnects the same identity; expired disconnect transfers host an
   rooms.remove(guest); assert.equal(rooms.rooms.size, 0); assert.equal(rooms.sessions.size, 0);
 });
 
-test('empty side cancels an active match and leaves the remaining player in lobby', () => {
+test('bots keep an active match running when a human leaves', () => {
   const rooms = new Rooms(); const host = join(rooms); const guest = join(rooms, host.room.code);
   for (const s of [host, guest]) rooms.command(s, { action: 'ready', ready: true });
   rooms.command(host, { action: 'start' }); rooms.remove(host);
-  assert.equal(guest.room.status, 'lobby'); assert.equal(guest.room.match, null);
-  assert.equal(guest.ready, false); assert.equal(guest.room.hostId, guest.id);
+  assert.equal(guest.room.status, 'playing');
+  assert.ok(guest.room.match.players.some(player => player.side === 'blue'));
+  assert.ok(guest.room.match.players.some(player => player.side === 'red'));
+  assert.equal(guest.room.hostId, guest.id);
 });
 
 test('finished matches support a fresh rematch in the same room', () => {
@@ -88,6 +127,21 @@ test('replacement stream stays connected when the old stream closes', () => {
   const next = new Stream(); rooms.connect(host, next);
   assert.equal(host.stream, next); assert.equal(host.disconnectedAt, null);
   assert.ok(previous.messages.some(m => m.includes('replaced')));
+});
+
+test('rooms do not publish duplicate live snapshots', () => {
+  const rooms = new Rooms(); const host = join(rooms); const guest = join(rooms, host.room.code);
+  for (const session of [host, guest]) rooms.command(session, { action: 'ready', ready: true });
+  rooms.command(host, { action: 'start' });
+  const stateCount = () => host.stream.messages.filter(message => message.startsWith('data: ') &&
+    JSON.parse(message.slice(6)).type === 'state').length;
+  const settled = stateCount();
+  rooms.publishState(host.room);
+  assert.equal(stateCount(), settled);
+  rooms.command(host, { action: 'input', dx: 1, dy: 0, aimX: 600, aimY: 800, fire: false });
+  rooms.tick();
+  rooms.tick();
+  assert.ok(stateCount() > settled);
 });
 
 test('invalid payloads, unknown sessions and command floods are rejected', () => {

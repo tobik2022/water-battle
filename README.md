@@ -18,7 +18,7 @@ Otevři **http://localhost:3000**. Pokud máš npm, funguje i `npm start`; insta
 4. Ostatní otevřou stejný server, vyberou postavu, zadají přezdívku a připojí se kódem.
 5. Každý potvrdí **JSEM PŘIPRAVEN**. Zakladatel spustí bitvu.
 
-V režimu **1v1** hrají dva lidé do 3 vyřazení. Týmový režim podporuje **2–10 lidí, nejvýše 5 na každé straně**, do 20 vyřazení. Oba týmy musí mít alespoň jednoho hráče a při startu se jejich velikost může lišit nejvýše o jednoho. Volná místa se nedoplňují boty.
+V režimu **1v1** mohou hrát až dva lidé do 3 vyřazení; při jednom člověku druhou stranu doplní bot. Režim **2v2** vyžaduje přesně čtyři lidi, dva na každé straně, a hraje se do 8 bodů bez botů. Režimy **3v3**, **4v4** a **5v5** podporují 1–5 lidí v místnosti; server při startu doplní chybějící sloty autoritativními boty do plných týmů a hraje se do 12, 16 nebo 20 bodů.
 
 V online hře mají všichni 3 životy, stejnou rychlost a stejné zbraně. Zelený kruh po respawnu poskytuje jednu sekundu ochrany; vlastní střelba ji ukončí. Vyřazený hráč se vrátí za 3 sekundy. Lokální upgrady, mince a úkoly platí pouze pro trénink. Po zápase může zakladatel připravit další zápas ve stejné místnosti.
 
@@ -63,14 +63,14 @@ Konfigurace posílá `/water_battle/api/events` přes dlouhé SSE spojení a ost
 ## Ovládání
 
 - PC: WASD / šipky pro pohyb, myš pro míření, klik pro střelbu; online lze tlačítko držet.
-- Mobil: vlevo táhni prstem pro pohyb. Vpravo táhni prstem ve směru střelby (i doleva); směr se počítá od začátku dotyku. Držením mimo střed střílíš, návratem do středu nebo puštěním prstu střelbu zastavíš. Oba ovladače fungují současně.
+- Mobil: vlevo je pevný modrý joystick pro pohyb a vpravo pevný oranžový joystick pro střelbu. Táhni prstem z jejich středu směrem, kterým chceš jít nebo střílet; oba ovladače fungují současně. Puštěním prstu ovládání zastavíš.
 - **MENU** během online hry opustí místnost.
 
 Po krátkém výpadku se spojení automaticky obnovuje. Server drží hráčovo místo přibližně 15 sekund; obnovení stránky ve stejné kartě zachová identitu. Ovládání bez nových vstupů se zastaví po 400 ms. Po odchodu zakladatele přebírá vedení další hráč. Když během bitvy odejde celý tým, zbývající hráči se vrátí do lobby.
 
 ## Trénink bez serveru
 
-Otevři `index.html` přímo v moderním prohlížeči a zvol **TRÉNINK S BOTY**. Režim 1v1 se hraje do 3 bodů a 5v5 do 20. Online funkce vyžadují spuštěný backend.
+Otevři `index.html` přímo v moderním prohlížeči a zvol **TRÉNINK S BOTY**. Režimy 1v1 až 5v5 mají stejné limity jako online hra. Online funkce vyžadují spuštěný backend.
 
 Všech 10 map má rozměry 2400 × 1600 herních jednotek. Překážky blokují hráče a střely. Kamera sleduje hráče a minimapa ukazuje celou arénu.
 
@@ -80,9 +80,9 @@ Všech 10 map má rozměry 2400 × 1600 herních jednotek. Překážky blokují 
 - `server/rooms.js`: místnosti, relační tokeny, připravenost, oprávnění zakladatele, SSE připojení, úklid a opakování zápasu.
 - `server/match.js`: autoritativní simulace 30× za sekundu; server rozhoduje o pohybu, kolizích, střelbě, zásazích, respawnu a skóre.
 - `shared/maps.js`: společná definice všech map pro klienta i backend.
-- `multiplayer.js`: online lobby, obnovování připojení a plynulé zobrazení serverového stavu. Vstupy jdou přes HTTP nejvýše 20× za sekundu, stav přes SSE 15× za sekundu.
+- `multiplayer.js`: online lobby, obnovování připojení a plynulé zobrazení serverového stavu. Při nečinnosti se vstupy neposílají; při aktivním ovládání jdou přes kompaktní HTTP endpoint nejvýše 20× za sekundu s keepalive po 200 ms, stav jde přes SSE jen při změně.
 
-API: `POST /api/rooms`, `POST /api/join`, `POST /api/command`, `GET /api/events?token=…`. Příkazy vyžadují hlavičku `Authorization: Bearer …`; tokeny se ostatním hráčům neposílají. `GET /healthz` vrací stav dostupnosti serveru.
+API: `POST /api/rooms`, `POST /api/join`, `POST /api/command`, `POST /api/input`, `GET /api/events?token=…`. `POST /api/input` je vyhrazený kompaktní endpoint pro průběžné ovládání; produkční Apache konfigurace ho proto nezapisuje do běžného access logu. Příkazy vyžadují hlavičku `Authorization: Bearer …`; tokeny se ostatním hráčům neposílají. `GET /healthz` vrací stav dostupnosti serveru.
 
 Místnosti a relace jsou pouze v paměti **jednoho procesu**. Restart serveru je zruší. Prázdné místnosti se uklidí automaticky; neaktivní lobby a výsledky po 30 minutách. Limit je 100 současných místností. Nejsou zde účty, databáze, trvalé online statistiky ani koordinace mezi více servery. Přezdívky nejsou ověřené; k připojení stačí znát kód místnosti.
 

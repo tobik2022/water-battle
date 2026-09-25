@@ -2,14 +2,15 @@
 
 const { randomBytes, randomUUID } = require('node:crypto');
 const maps = require('../shared/maps');
-const { createMatch, setInput, step, snapshot } = require('./match');
+const { createMatch, setInput, step, wireSnapshot } = require('./match');
 
 class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 const fail = (condition, status, message) => { if (condition) throw new ApiError(status, message); };
-const validMode = mode => mode === '1v1' || mode === '5v5';
-const capacity = mode => mode === '1v1' ? 2 : 10;
+const validMode = mode => ['1v1', '2v2', '3v3', '4v4', '5v5'].includes(mode);
+const capacity = mode => mode === '1v1' ? 2 : mode === '2v2' ? 4 : 5;
+const teamSize = mode => mode === '1v1' ? 1 : mode === '2v2' ? 2 : mode === '3v3' ? 3 : mode === '4v4' ? 4 : 5;
 const integer = (value, max) => Number.isInteger(value) && value >= 0 && value < max;
 const GRACE_MS = 15000;
 
@@ -17,10 +18,15 @@ class Rooms {
   constructor() { this.rooms = new Map(); this.sessions = new Map(); }
 
   publicRoom(room) {
+    const roster = room.match ? room.match.players : [...room.members.values()];
     return { code: room.code, hostId: room.hostId, map: room.map, mode: room.mode,
-      status: room.status, capacity: capacity(room.mode), notice: room.notice,
-      players: [...room.members.values()].map(s => ({ id: s.id, name: s.name, side: s.side,
-        ready: s.ready, connected: !!s.stream, teamIndex: s.teamIndex, skinIndex: s.skinIndex })) };
+      status: room.status, capacity: capacity(room.mode), humanCount: room.members.size, notice: room.notice,
+      players: roster.map(player => {
+        const member = room.members.get(player.id);
+        return { id: player.id, name: player.name, side: player.side,
+          ready: player.bot || !!member?.ready, connected: player.bot || !!member?.stream,
+          teamIndex: player.teamIndex, skinIndex: player.skinIndex, bot: !!player.bot };
+      }) };
   }
 
   send(session, type, data) {
@@ -46,7 +52,7 @@ class Rooms {
       let code;
       do { code = randomBytes(4).toString('hex').slice(0, 6).toUpperCase(); } while (this.rooms.has(code));
       room = { code, mode: data.mode, map: data.map, status: 'lobby', members: new Map(),
-        hostId: null, match: null, notice: '', lastActivity: Date.now() };
+        hostId: null, match: null, notice: '', lastActivity: Date.now(), lastWireState: null };
       this.rooms.set(code, room);
     } else {
       const code = typeof data.code === 'string' ? data.code.trim().toUpperCase() : '';
@@ -91,7 +97,7 @@ class Rooms {
       this.broadcast(session.room);
     });
     this.broadcast(session.room);
-    if (session.room.match) this.send(session, 'state', { state: snapshot(session.room.match) });
+    if (session.room.match) this.send(session, 'state', { state: wireSnapshot(session.room.match) });
   }
 
   command(session, data) {
@@ -111,6 +117,7 @@ class Rooms {
       fail(session.id !== room.hostId, 403, 'Další zápas chystá zakladatel.');
       fail(room.status !== 'finished', 409, 'Zápas ještě neskončil.');
       room.status = 'lobby'; room.match = null; room.notice = 'Nový zápas — potvrď připravenost.';
+      room.lastWireState = null;
       for (const member of room.members.values()) member.ready = false;
       this.broadcast(room); return;
     }
@@ -123,27 +130,31 @@ class Rooms {
       case 'side': {
         fail(data.side !== 'blue' && data.side !== 'red', 400, 'Neplatná strana.');
         const others = [...room.members.values()].filter(s => s.id !== session.id && s.side === data.side);
-        fail(others.length >= capacity(room.mode) / 2, 409, 'Tento tým je plný.');
+        fail(others.length >= teamSize(room.mode), 409, 'Tento tým je plný.');
         session.side = data.side; session.ready = false;
         break;
       }
       case 'settings':
         fail(session.id !== room.hostId, 403, 'Mapu a režim vybírá zakladatel.');
         fail(!validMode(data.mode) || !integer(data.map, maps.length), 400, 'Neplatný režim nebo mapa.');
-        fail(['blue', 'red'].some(side => [...room.members.values()].filter(s => s.side === side).length > capacity(data.mode) / 2),
-          409, 'Pro souboj 1v1 musí být v každém týmu právě jeden hráč.');
+        fail(room.members.size > capacity(data.mode), 409, 'V místnosti je na tento režim příliš mnoho hráčů.');
+        fail(['blue', 'red'].some(side => [...room.members.values()].filter(s => s.side === side).length > teamSize(data.mode)),
+          409, 'Na zvoleném režimu je některý tým plný.');
         room.mode = data.mode; room.map = data.map;
         for (const member of room.members.values()) member.ready = false;
         break;
       case 'start': {
         fail(session.id !== room.hostId, 403, 'Bitvu spouští zakladatel.');
         const members = [...room.members.values()];
-        const blue = members.filter(s => s.side === 'blue').length;
-        const red = members.length - blue;
-        fail(!blue || !red || Math.abs(blue - red) > 1, 409, 'Potřebuješ dva vyrovnané týmy (rozdíl nejvýše 1).');
         fail(members.some(s => !s.ready || !s.stream), 409, 'Všichni hráči musí být připojeni a připraveni.');
-        room.match = createMatch(members, room.map, room.mode);
-        room.status = 'playing'; room.notice = '';
+        fail(!members.length, 409, 'Místnost je prázdná.');
+        if (room.mode === '2v2') {
+          const blue = members.filter(s => s.side === 'blue').length;
+          const red = members.filter(s => s.side === 'red').length;
+          fail(members.length !== 4 || blue !== 2 || red !== 2, 409, 'Režim 2v2 potřebuje čtyři hráče, dva na každé straně.');
+        }
+        room.match = createMatch(this.rosterWithBots(room), room.map, room.mode);
+        room.status = 'playing'; room.notice = ''; room.lastWireState = null;
         break;
       }
       default: throw new ApiError(400, 'Neznámá akce.');
@@ -164,6 +175,7 @@ class Rooms {
     if (room.match) {
       room.match.players = room.match.players.filter(p => p.id !== session.id);
       room.match.bullets = room.match.bullets.filter(b => b.owner !== session.id);
+      room.lastWireState = null;
       if (room.status === 'playing' && ['blue', 'red'].some(side => !room.match.players.some(p => p.side === side))) {
         room.status = 'lobby'; room.match = null;
         room.notice = 'Tým opustil bitvu. Pozvi další hráče a spusť nový zápas.';
@@ -174,8 +186,26 @@ class Rooms {
   }
 
   publishState(room) {
-    const state = snapshot(room.match);
+    const state = wireSnapshot(room.match);
+    const encoded = JSON.stringify(state);
+    if (encoded === room.lastWireState) return;
+    room.lastWireState = encoded;
     for (const member of room.members.values()) this.send(member, 'state', { state });
+  }
+
+  rosterWithBots(room) {
+    const humans = [...room.members.values()];
+    const roster = [...humans];
+    if (room.mode === '2v2') return roster;
+    for (const side of ['blue', 'red']) {
+      const missing = teamSize(room.mode) - humans.filter(member => member.side === side).length;
+      for (let i = 0; i < missing; i++) {
+        const number = i + 1;
+        roster.push({ id: `bot-${room.code}-${side}-${number}`, name: `AI ${side === 'blue' ? 'Modří' : 'Červení'} ${number}`,
+          side, teamIndex: i % 5, skinIndex: i % 5, bot: true, ready: true });
+      }
+    }
+    return roster;
   }
 
   tick(now = Date.now()) {

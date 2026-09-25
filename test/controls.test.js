@@ -93,14 +93,14 @@ function client(online = false, width = 800) {
     await new Promise(resolve => setImmediate(resolve));
     return requests.at(-1);
   };
-  return { run, pointer, frame, window, document };
+  return { run, pointer, frame, requestCount: () => requests.length, window, document };
 }
 
 test('mobile training fires in all eight stick directions, including left on the right half', async () => {
   for (const width of [390, 800]) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-    const c = client(false, width), origin = width * .8;
-    c.pointer('pointerdown', 1, origin, 350);
-    c.pointer('pointermove', 1, origin + dx * 40, 350 + dy * 40);
+    const c = client(false, width), origin = width - Math.min(86, Math.max(64, width * .2));
+    c.pointer('pointerdown', 1, origin, 512);
+    c.pointer('pointermove', 1, origin + dx * 40, 512 + dy * 40);
     await c.frame();
     assert.equal(c.run('shots.length'), 1);
     const bullet = c.run('shots[0]'), length = Math.hypot(dx, dy);
@@ -111,9 +111,11 @@ test('mobile training fires in all eight stick directions, including left on the
 
 test('touch movement and firing keep separate owners across the screen midpoint', async () => {
   const c = client();
-  c.pointer('pointerdown', 1, 100, 350);
-  c.pointer('pointermove', 1, 160, 350);
-  c.pointer('pointerdown', 2, 650, 350);
+  const moveOrigin = Math.min(86, Math.max(64, 800 * .2));
+  const aimOrigin = 800 - moveOrigin;
+  c.pointer('pointerdown', 1, moveOrigin, 512);
+  c.pointer('pointermove', 1, moveOrigin + 60, 512);
+  c.pointer('pointerdown', 2, aimOrigin, 512);
   c.pointer('pointermove', 2, 350, 350);
   c.pointer('pointerdown', 3, 700, 300);
   c.pointer('pointerdown', 4, 100, 300);
@@ -123,7 +125,7 @@ test('touch movement and firing keep separate owners across the screen midpoint'
   assert.ok(c.run('shots[0].vx') < 0);
   assert.equal(c.run('touchMove.id'), 1);
   assert.equal(c.run('touchAim.id'), 2);
-  c.pointer('pointerup', 1, 160, 350);
+  c.pointer('pointerup', 1, moveOrigin + 60, 512);
   c.run('shots=[]; touchFireTimer=0');
   await c.frame();
   assert.ok(c.run('shots[0].vx') < 0, 'releasing movement keeps firing');
@@ -136,21 +138,22 @@ test('touch movement and firing keep separate owners across the screen midpoint'
 test('a centered stick does not fire; cancellation, capture loss and blur stop firing', async () => {
   for (const stop of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur', 'hidden']) {
     const c = client();
-    c.pointer('pointerdown', 1, 650, 350);
-    c.pointer('pointermove', 1, 647, 350);
+    const aimOrigin = 800 - Math.min(86, Math.max(64, 800 * .2));
+    c.pointer('pointerdown', 1, aimOrigin, 512);
+    c.pointer('pointermove', 1, aimOrigin - 3, 512);
     await c.frame();
     assert.equal(c.run('shots.length'), 0, 'touch-down and small jitter do not fire');
     c.pointer('pointermove', 1, 600, 350);
     await c.frame();
     assert.equal(c.run('shots.length'), 1);
     c.run('shots=[]; touchFireTimer=0');
-    c.pointer('pointermove', 1, 650, 350);
+    c.pointer('pointermove', 1, aimOrigin, 512);
     await c.frame();
     assert.equal(c.run('shots.length'), 0, 'returning to the center stops fire');
-    c.pointer('pointermove', 1, 600, 350);
+    c.pointer('pointermove', 1, aimOrigin - 114, 512);
     if (stop === 'blur') c.window.dispatch('blur');
     else if (stop === 'hidden') { c.document.hidden = true; c.document.dispatch('visibilitychange'); }
-    else c.pointer(stop, 1, 600, 350);
+    else c.pointer(stop, 1, aimOrigin - 114, 512);
     await c.frame();
     assert.equal(c.run('shots.length'), 0);
     assert.equal(c.run('touchAim'), null);
@@ -164,9 +167,10 @@ test('online input uses stick direction relative to the player even at camera ed
     c.run(`player.x=player.targetX=${x}; updateCamera()`);
     c.pointer('pointerdown', 1, 100, 350);
     c.pointer('pointermove', 1, 150, 350);
-    c.pointer('pointerdown', 2, 650, 350);
+    const aimOrigin = 800 - Math.min(86, Math.max(64, 800 * .2));
+    c.pointer('pointerdown', 2, aimOrigin, 512);
     assert.equal((await c.frame()).fire, false);
-    c.pointer('pointermove', 2, 600, 350);
+    c.pointer('pointermove', 2, aimOrigin - 114, 512);
     let input = await c.frame();
     assert.equal(input.fire, true);
     assert.equal(input.aimX, x - 200);
@@ -177,6 +181,24 @@ test('online input uses stick direction relative to the player even at camera ed
     assert.equal(input.fire, false, 'movement finger does not keep firing');
     assert.ok(input.dx > 0);
   }
+});
+
+test('online input stays quiet while idle and sends one stop after release', async () => {
+  const c = client(true);
+  await c.frame();
+  assert.equal(c.requestCount(), 0);
+  c.pointer('pointerdown', 1, 100, 350);
+  c.pointer('pointermove', 1, 150, 350);
+  const moving = await c.frame();
+  assert.equal(moving.fire, false);
+  assert.equal(c.requestCount(), 1);
+  c.pointer('pointerup', 1, 150, 350);
+  const stopped = await c.frame();
+  assert.equal(stopped.fire, false);
+  assert.equal(stopped.dx, 0);
+  assert.equal(c.requestCount(), 2);
+  await c.frame();
+  assert.equal(c.requestCount(), 2);
 });
 
 test('mouse clicks still aim at the cursor in training and online play', async () => {

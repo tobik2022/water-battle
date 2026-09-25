@@ -4,6 +4,18 @@ const assert = require('node:assert/strict');
 const { once } = require('node:events');
 const { createServer } = require('../server');
 
+function decodeState(state, room) {
+  if (!state.p) return state;
+  return {
+    score: { blue: state.s[0], red: state.s[1] }, winner: state.w || null,
+    events: state.e ? [{ id: state.e }] : [],
+    players: state.p.map(([index, x, y, hp, respawnTime, protection, kills]) => ({
+      ...room.players[index], x, y, r: 18, hp, maxHp: 3, respawnTime, protection, kills,
+    })),
+    bullets: state.b.map(([id, side, x, y]) => ({ id, side: side ? 'red' : 'blue', x, y, r: 6 })),
+  };
+}
+
 async function setup(t) {
   const server = createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => server.shutdown());
@@ -70,25 +82,28 @@ test('two real HTTP clients receive the same match, movement, elimination, victo
   const a = await events(base, host.token, t); const b = await events(base, guest.token, t);
   await a.wait(e => e.type === 'room' && e.room.players.every(p => p.connected));
   const command = (user, data) => post('/api/command', data, user.token);
+  const input = (user, data) => post('/api/input', data, user.token);
   assert.equal((await command(guest, { action: 'start' })).status, 403);
   for (const user of [host, guest]) assert.equal((await command(user, { action: 'ready', ready: true })).status, 200);
   assert.equal((await command(host, { action: 'start' })).status, 200);
-  const initial = (await a.wait(e => e.type === 'state')).state;
-  await b.wait(e => e.type === 'state' && e.state.tick === initial.tick);
+  const initial = decodeState((await a.wait(e => e.type === 'state')).state, host.room);
+  await b.wait(e => e.type === 'state');
   const startX = initial.players.find(p => p.id === host.playerId).x;
-  await command(host, { action: 'input', dx: 1, dy: 0, aimX: 500, aimY: 1500, fire: false, hp: 100, x: 2000 });
-  const moved = await b.wait(e => e.type === 'state' && e.state.players.find(p => p.id === host.playerId).x > startX);
-  assert.equal(moved.state.players.find(p => p.id === host.playerId).hp, 3);
+  await input(host, { dx: 1, dy: 0, aimX: 500, aimY: 1500, fire: false, hp: 100, x: 2000 });
+  const moved = await b.wait(e => e.type === 'state' &&
+    decodeState(e.state, host.room).players.find(p => p.id === host.playerId).x > startX);
+  const movedState = decodeState(moved.state, host.room);
+  assert.equal(movedState.players.find(p => p.id === host.playerId).hp, 3);
   // Deterministic final-shot fixture; movement and damage still run through HTTP and the live server loop.
   const match = server.rooms.rooms.get(host.room.code).match;
   Object.assign(match.players[0], { x: 100, y: 1500, cool: 0, protection: 0 });
   Object.assign(match.players[1], { x: 250, y: 1500, hp: 1, protection: 0 });
   match.score.blue = 2;
-  await command(host, { action: 'input', dx: 0, dy: 0, aimX: 250, aimY: 1500, fire: true });
-  const wonA = (await a.wait(e => e.type === 'state' && e.state.winner === 'blue')).state;
-  const wonB = (await b.wait(e => e.type === 'state' && e.state.winner === 'blue')).state;
+  await input(host, { dx: 0, dy: 0, aimX: 250, aimY: 1500, fire: true });
+  const wonA = decodeState((await a.wait(e => e.type === 'state' && e.state.w === 'blue')).state, host.room);
+  const wonB = decodeState((await b.wait(e => e.type === 'state' && e.state.w === 'blue')).state, host.room);
   assert.deepEqual(wonA, wonB); assert.deepEqual(wonA.score, { blue: 3, red: 0 });
-  assert.equal(wonA.events[0].victim.name, 'Boris');
+  assert.ok(wonA.events[0].id > 0);
   assert.equal((await command(host, { action: 'rematch' })).status, 200);
   await b.wait(e => e.type === 'room' && e.room.notice.startsWith('Nový zápas'));
   // Replacing an SSE connection must retain identity and notify its old tab.

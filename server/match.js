@@ -7,6 +7,8 @@ const SPEED = 260;
 const FIRE_INTERVAL = 0.25;
 const RESPAWN = 3;
 const INPUT_TIMEOUT = 400;
+const BOT_THINK = 0.2;
+const scoreLimit = mode => mode === '1v1' ? 3 : mode === '2v2' ? 8 : mode === '3v3' ? 12 : mode === '4v4' ? 16 : 20;
 
 function geometry(map) {
   return maps[map].obstacles.map(([x, y, w, h]) => ({
@@ -51,12 +53,13 @@ function spawn(match, unit) {
 function createMatch(members, map, mode, now = Date.now()) {
   const match = {
     map, mode, boxes: geometry(map), tick: 0, startedAt: now,
-    score: { blue: 0, red: 0 }, limit: mode === '1v1' ? 3 : 20,
+    score: { blue: 0, red: 0 }, limit: scoreLimit(mode),
     players: members.map(member => ({
       id: member.id, name: member.name, side: member.side,
       teamIndex: member.teamIndex, skinIndex: member.skinIndex,
+      bot: !!member.bot,
       x: 0, y: 0, r: 18, hp: 0, maxHp: 3, kills: 0,
-      respawnTime: 0, protection: 0, cool: 0, input: null, inputAt: 0,
+      respawnTime: 0, protection: 0, cool: 0, botThink: 0, input: null, inputAt: 0,
     })),
     bullets: [], nextBullet: 1, events: [], nextEvent: 1, winner: null,
   };
@@ -78,9 +81,31 @@ function setInput(match, id, data, now = Date.now()) {
   return true;
 }
 
+function updateBots(match, now) {
+  for (let index = 0; index < match.players.length; index++) {
+    const bot = match.players[index];
+    if (!bot.bot) continue;
+    if (bot.hp <= 0) { bot.input = null; continue; }
+    bot.botThink -= STEP;
+    if (bot.input && bot.botThink > 0) continue;
+    const target = match.players
+      .filter(player => player.side !== bot.side && player.hp > 0)
+      .sort((a, b) => Math.hypot(a.x - bot.x, a.y - bot.y) - Math.hypot(b.x - bot.x, b.y - bot.y))[0];
+    if (!target) { bot.input = null; continue; }
+    const dx = target.x - bot.x, dy = target.y - bot.y, distance = Math.hypot(dx, dy) || 1;
+    let moveX = dx / distance, moveY = dy / distance;
+    if (distance < 330) { moveX = -dy / distance; moveY = dx / distance; }
+    setInput(match, bot.id, {
+      dx: moveX, dy: moveY, aimX: target.x, aimY: target.y, fire: distance < 900,
+    }, now);
+    bot.botThink = BOT_THINK;
+  }
+}
+
 function step(match, now = Date.now()) {
   if (match.winner) return;
   match.tick++;
+  updateBots(match, now);
   for (const unit of match.players) {
     if (unit.hp <= 0) {
       unit.respawnTime -= STEP;
@@ -138,10 +163,30 @@ function snapshot(match) {
   return {
     tick: match.tick, map: match.map, mode: match.mode, score: match.score,
     limit: match.limit, winner: match.winner, events: match.events,
-    players: match.players.map(({ input, inputAt, cool, ...player }) => player),
+    players: match.players.map(({ input, inputAt, cool, botThink, ...player }) => player),
     bullets: match.bullets.map(({ vx, vy, life, owner, ...bullet }) => bullet),
   };
 }
 
+// The browser already receives static player metadata in the room event. Keep
+// live packets focused on values that change during the match and use short
+// keys/arrays to avoid repeating JSON property names 15 times per second.
+function wireSnapshot(match) {
+  const lastEvent = match.events.at(-1);
+  return {
+    s: [match.score.blue, match.score.red],
+    w: match.winner,
+    e: lastEvent?.id || 0,
+    p: match.players.map((player, index) => [
+      index, Math.round(player.x), Math.round(player.y), player.hp,
+      Math.round(player.respawnTime * 100) / 100,
+      Math.round(player.protection * 100) / 100, player.kills,
+    ]),
+    b: match.bullets.map(bullet => [
+      bullet.id, bullet.side === 'red' ? 1 : 0, Math.round(bullet.x), Math.round(bullet.y),
+    ]),
+  };
+}
+
 module.exports = { WORLD, STEP, SPEED, FIRE_INTERVAL, RESPAWN, INPUT_TIMEOUT,
-  geometry, blocked, move, createMatch, setInput, step, snapshot };
+  geometry, blocked, move, createMatch, setInput, step, snapshot, wireSnapshot };

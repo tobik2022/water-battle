@@ -3,11 +3,15 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const storageKey = 'waterBattleOnlineSession';
-  const apiBase = document.querySelector('base')?.getAttribute('href')?.replace(/\/$/, '') || '';
+  // Resolve the backend relative to the page so the same build works at /
+  // locally and below a reverse-proxied path such as /water_battle/.
+  const apiBase = location.protocol === 'file:' ? '' : new URL('.', location.href).pathname.replace(/\/$/, '');
   const apiPath = path => `${apiBase}${path}`;
   let enabled = false, session = null, room = null, stream = null, connected = false;
-  let reconnectTimer = null, busy = false, inputPending = false, sendIn = 0, shot = null;
+  let reconnectTimer = null, busy = false, inputPending = false, sendIn = 0, inputAge = 0;
+  let lastInputKey = null, shot = null;
   let latestState = null, lastEvent = 0;
+  const INPUT_KEEPALIVE = 0.2;
   const color = side => side === 'blue' ? '#28d7ff' : '#ff547d';
   const ownMember = () => room?.players.find(p => p.id === session?.playerId);
   const isHost = () => room?.hostId === session?.playerId;
@@ -18,6 +22,26 @@
   const storeSession = value => {
     try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey); } catch { /* Private browsing can disable storage. */ }
   };
+  function resetInputTransport() { inputPending = false; sendIn = 0; inputAge = 0; lastInputKey = null; }
+
+  function decodeState(state) {
+    if (!state.p) return state; // Accept the verbose shape during rolling deployments.
+    const members = room?.players || [];
+    const players = state.p.map(([index, x, y, hp, respawnTime, protection, kills]) => {
+      const member = members[index];
+      if (!member) return null;
+      return { ...member, x, y, r: 18, hp, maxHp: 3, respawnTime, protection, kills };
+    }).filter(Boolean);
+    const bullets = state.b.map(([id, side, x, y]) => ({ id, side: side ? 'red' : 'blue', x, y, r: 6 }));
+    return {
+      score: { blue: state.s[0], red: state.s[1] },
+      winner: state.w || null,
+      events: state.e ? [{ id: state.e }] : [],
+      players, bullets,
+      map: room.map, mode: room.mode,
+      limit: room.mode === '1v1' ? 3 : room.mode === '2v2' ? 8 : room.mode === '3v3' ? 12 : room.mode === '4v4' ? 16 : 20,
+    };
+  }
 
   async function api(path, data, token) {
     const response = await fetch(apiPath(path), {
@@ -76,27 +100,30 @@
     for (const side of ['blue', 'red']) for (const member of room.players.filter(p => p.side === side)) {
       const item = document.createElement('li'); item.className = `online-player ${side}`;
       const name = document.createElement('strong');
-      name.textContent = `${member.name}${member.id === session.playerId ? ' (TY)' : ''}${member.id === room.hostId ? ' · ZAKLADATEL' : ''}`;
+      name.textContent = `${member.name}${member.bot ? ' · BOT' : ''}${member.id === session.playerId ? ' (TY)' : ''}${member.id === room.hostId ? ' · ZAKLADATEL' : ''}`;
       const detail = document.createElement('small');
       detail.textContent = `${side === 'blue' ? 'Modří' : 'Červení'} · ${teams[member.teamIndex].skins[member.skinIndex].name}`;
       const state = document.createElement('span');
       state.textContent = !member.connected ? 'Obnovuje spojení…' : member.ready ? 'Připraven ✓' : 'Vybírá…';
       item.append(name, detail, state); $('onlinePlayers').append(item);
     }
-    const blue = room.players.filter(p => p.side === 'blue').length;
-    const red = room.players.length - blue;
-    const balanced = blue > 0 && red > 0 && Math.abs(blue - red) <= 1;
-    const allReady = room.players.every(p => p.ready && p.connected);
+    const humans = room.players.filter(p => !p.bot);
+    const enoughPlayers = room.mode !== '2v2' || humans.length === room.capacity;
+    const allReady = humans.length > 0 && enoughPlayers && humans.every(p => p.ready && p.connected);
     $('startOnlineBtn').hidden = !isHost();
-    $('startOnlineBtn').disabled = locked || !balanced || !allReady;
-    $('roomHint').textContent = room.notice || `${room.players.length}/${room.capacity} hráčů · ${maps[room.map].name}. ` +
-      (!balanced ? 'Pozvi soupeře a vyrovnej týmy.' : !allReady ? 'Každý hráč musí potvrdit připravenost.' : isHost() ? 'Všichni jsou připraveni. Spusť bitvu.' : 'Čekáme, až zakladatel spustí bitvu.');
+    $('startOnlineBtn').disabled = locked || !allReady;
+    const humanCount = room.humanCount ?? humans.length;
+    const botHint = room.mode === '2v2' ? '' : ' Volná místa doplní boti.';
+    const readinessHint = !enoughPlayers ? 'Režim 2v2 potřebuje čtyři hráče.' : !allReady ? 'Každý hráč musí potvrdit připravenost.' : '';
+    $('roomHint').textContent = room.notice || `${humanCount}/${room.capacity} hráčů · ${maps[room.map].name}. ` +
+      (readinessHint || (isHost() ? `Všichni jsou připraveni. Spusť bitvu.${botHint}` : `Čekáme, až zakladatel spustí bitvu.${botHint}`));
     $('rematchBtn').hidden = !isHost();
     $('rematchBtn').disabled = busy || !connected;
   }
 
   function stopOnlineGame() {
     onlineFrame = null; onlineShoot = null; latestState = null; shot = null;
+    resetInputTransport();
     $('onlineResult').hidden = true; $('networkBanner').hidden = true;
     game.classList.remove('is-online');
     returnToTeamSelection();
@@ -125,6 +152,7 @@
     stream = source;
     source.onopen = () => {
       if (session !== owner) return;
+      resetInputTransport();
       connected = true; clearTimeout(reconnectTimer); reconnectTimer = null;
       $('networkBanner').hidden = true; status('Připojeno k serveru.'); renderRoom();
     };
@@ -142,6 +170,7 @@
     };
     source.onerror = () => {
       if (session !== owner) return;
+      resetInputTransport();
       connected = false; clearControls(); shot = null;
       status('Spojení přerušeno. Zkouším znovu…', true);
       $('networkBanner').textContent = 'Obnovuji spojení…'; $('networkBanner').hidden = !onlineFrame;
@@ -185,12 +214,13 @@
 
   function receiveState(state) {
     if (!session || !room || room.status === 'lobby') return;
+    state = decodeState(state);
     const starting = !onlineFrame;
     if (starting) {
       clearTimeout(returnToMenuTimer); clearTimeout(missionNoticeTimer);
       message.classList.remove('complete'); clearControls();
       blueTeam = []; redTeam = []; shots = []; enemyShots = []; particles = []; lastSpawns = [];
-      lastEvent = 0; sendIn = 0;
+      lastEvent = 0; resetInputTransport();
       selectedMap = state.map; gameMode = state.mode;
       onlineFrame = frame; onlineShoot = (x, y) => { if (connected) shot = { x: x + camera.x, y: y + camera.y }; };
       welcome.classList.remove('active'); menu.classList.remove('active'); game.classList.add('active', 'is-online');
@@ -233,8 +263,8 @@
       unit.x += (unit.targetX - unit.x) * blend; unit.y += (unit.targetY - unit.y) * blend;
     }
     sendIn -= dt;
+    inputAge += dt;
     if (!session || !connected || latestState?.winner || inputPending || sendIn > 0) return;
-    sendIn = 0.05;
     let dx = Number(!!(keys.d || keys.arrowright)) - Number(!!(keys.a || keys.arrowleft));
     let dy = Number(!!(keys.s || keys.arrowdown)) - Number(!!(keys.w || keys.arrowup));
     if (touchMove) {
@@ -244,10 +274,18 @@
     const touchTarget = touchAimTarget();
     const aim = shot || { x: (touchTarget?.x ?? pointer.x) + camera.x, y: (touchTarget?.y ?? pointer.y) + camera.y };
     const fire = !!shot || !!touchTarget || pointer.down;
+    const active = dx !== 0 || dy !== 0 || fire;
+    const aimKey = fire ? `${Math.round(aim.x)},${Math.round(aim.y)}` : '';
+    const inputKey = active ? `${dx.toFixed(3)},${dy.toFixed(3)},${aimKey},${fire}` : 'idle';
+    if (!active && lastInputKey === null) return;
+    if (inputKey === lastInputKey && inputAge < INPUT_KEEPALIVE) return;
+    sendIn = 0.05;
     shot = null;
     const owner = session;
+    lastInputKey = inputKey;
+    inputAge = 0;
     inputPending = true;
-    api('/api/command', { action: 'input', dx, dy, aimX: aim.x, aimY: aim.y, fire }, owner.token)
+    api('/api/input', { dx, dy, aimX: aim.x, aimY: aim.y, fire }, owner.token)
       .catch(error => {
         if (session === owner && error.status === 401) exitRoom(error.message);
       }).finally(() => { inputPending = false; });

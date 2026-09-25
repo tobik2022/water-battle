@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const maps = require('../shared/maps');
-const { createMatch, setInput, step, blocked, snapshot, SPEED, STEP } = require('../server/match');
+const { createMatch, setInput, step, blocked, snapshot, wireSnapshot, SPEED, STEP } = require('../server/match');
 
 const members = count => Array.from({ length: count }, (_, i) => ({ id: `p${i}`, name: `Player ${i}`,
   side: i % 2 ? 'red' : 'blue', teamIndex: i % 5, skinIndex: i % 5 }));
@@ -97,4 +97,6 @@ test('victory freezes the authoritative match and snapshots contain no input sec
   advance(match, 50, input({ dx: 1, fire: true }));
   assert.equal(match.tick, tick); assert.equal(match.score.blue, 3);
   assert.equal('input' in snapshot(match).players[0], false);
+  assert.equal(wireSnapshot(match).p[0].length, 7);
+  assert.equal(JSON.stringify(wireSnapshot(match)).includes('input'), false);
 });
