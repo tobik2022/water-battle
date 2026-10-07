@@ -1,4 +1,4 @@
-.coin-icon{width:16px;height:16px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block}
+.coin-icon{width:18px;height:18px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block}
 :root{
   --bg:#03111f;--panel:#071b2d;--line:#123a5a;--cyan:#28d7ff;--blue:#0b7dff;--text:#eaf8ff;--muted:#83a9c4;
 }
@@ -57,6 +57,12 @@ button{font:inherit}.screen{display:none;width:100vw;height:100vh}.screen.active
 #enterBtn{max-width:330px;border-radius:99px;box-shadow:0 6px 35px #00baff28}#enterBtn span{margin-left:20px}
 .welcome-footer{font-size:12px;color:#7399b0;margin:28px 0 0}
 @media(max-height:650px){#welcomeLogo{width:220px}.welcome-description{margin-bottom:18px}.welcome-footer{margin-top:18px}}
+
+/* Show the hamburger as a popover without shifting lobby content. */
+.hamburger-menu{position:absolute!important;top:58px!important;right:14px!important;left:auto!important;margin:0!important}
+@media(max-width:900px){.hamburger-menu{width:min(200px,calc(100% - 28px));grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px}.hamburger-menu button{min-height:54px}}
+@media(max-width:420px){.hamburger-menu{top:190px!important}}
+#menu .panel>#hamburgerMenu{z-index:20!important;background:#061827}
 
 /* Multiplayer lobby and match result */
 [hidden]{display:none!important}

@@ -6,9 +6,9 @@ const path = require('node:path');
 const { Rooms, ApiError } = require('./server/rooms');
 
 const ROOT = __dirname;
-const PUBLIC_FILES = new Set(['/index.html', '/style.css', '/game.js', '/multiplayer.js', '/shared/maps.js']);
+const PUBLIC_FILES = new Set(['/index.html', '/style.css', '/game.js', '/multiplayer.js', '/shared/maps.js', '/images/coin.svg']);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
+  '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 function json(response, status, data) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
