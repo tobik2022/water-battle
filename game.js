@@ -58,7 +58,7 @@ const upgradesModal=document.querySelector('#upgradesModal');
 let coins=Number(localStorage.getItem('waterBattleCoins')||0),taskKills=Number(localStorage.getItem('waterBattleTaskKills')||0),taskWins=Number(localStorage.getItem('waterBattleTaskWins')||0),taskRound=Number(localStorage.getItem('waterBattleTaskRound')||0),taskKillReward=localStorage.getItem('waterBattleTaskKillReward')==='1',taskTenKillReward=localStorage.getItem('waterBattleTaskTenKillReward')==='1',taskWinReward=localStorage.getItem('waterBattleTaskWinReward')==='1';
 const coinCount=document.querySelector('#coinCount');
 const coinCountLobby=document.querySelector('#coinCountLobby');
-const coinIcon='<img class="coin-icon" style="width:18px;height:18px;object-fit:cover;border-radius:50%;vertical-align:middle" src="images/coin.svg" alt="Vodní mince">';
+const coinIcon='<span class="coin-icon" aria-hidden="true">W</span>';
 function updateCoins(){coinCount.textContent=coins;coinCountLobby.textContent=coins;localStorage.setItem('waterBattleCoins',String(coins))}
 function updateTasks(){localStorage.setItem('waterBattleTaskKills',String(taskKills));localStorage.setItem('waterBattleTaskWins',String(taskWins));if(!tasksModal.hidden)showTasks()}
 function upgradeCost(level){return 10+level*10}

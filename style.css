@@ -1,4 +1,4 @@
-.coin-icon{width:18px;height:18px;object-fit:cover;border-radius:50%;vertical-align:middle;display:inline-block}
+.coin-icon{width:18px;height:18px;display:inline-grid;place-items:center;vertical-align:middle;border:1px solid #fff0a0;border-radius:50%;background:radial-gradient(circle at 30% 25%,#fff3a6 0 8%,#f8c43c 38%,#e89a1b 82%);box-shadow:inset 0 0 0 2px #b46a13,0 1px 2px #0008;color:#713b0a;font:900 10px/1 Arial,sans-serif;text-shadow:0 1px #fff0a0}
 :root{
   --bg:#03111f;--panel:#071b2d;--line:#123a5a;--cyan:#28d7ff;--blue:#0b7dff;--text:#eaf8ff;--muted:#83a9c4;
 }
